@@ -1,0 +1,12 @@
+{
+  "name": "js-game-engine",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @js-game-engine/editor",
+    "build": "npm run build -w @js-game-engine/editor",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}

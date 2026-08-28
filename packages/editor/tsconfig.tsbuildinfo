@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/panel.tsx","./src/components/toolbar.tsx","./src/panels/consolepanel.tsx","./src/panels/hierarchypanel.tsx","./src/panels/inspectorpanel.tsx","./src/panels/projectpanel.tsx","./src/panels/sceneviewpanel.tsx","./src/panels/scripteditorpanel.tsx"],"version":"5.9.3"}
