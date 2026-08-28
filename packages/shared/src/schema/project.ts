@@ -36,7 +36,18 @@ export type SerializedComponent =
       type: 'Rotator';
       enabled: boolean;
       speed: number;
+    }
+  | {
+      type: 'ScriptComponent';
+      enabled: boolean;
+      scriptAssetId: string | null;
     };
+
+export interface ScriptRecord {
+  id: string;
+  name: string;
+  source: string;
+}
 
 export interface SerializedGameObject {
   id: string;
@@ -56,6 +67,7 @@ export interface ProjectData {
   version: string;
   name: string;
   scene: SerializedScene;
+  scripts: ScriptRecord[];
 }
 
 export interface AssetRecord {

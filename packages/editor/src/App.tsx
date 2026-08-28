@@ -11,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { ProjectPanel } from './panels/ProjectPanel';
 import { ScriptEditorPanel } from './panels/ScriptEditorPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { Input } from '@js-game-engine/engine';
 import { useSceneStore } from './stores/sceneStore';
 
 function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
@@ -32,7 +33,11 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (editorMode !== 'edit') return;
+      if (editorMode === 'play') {
+        Input._setKey(event.key, true);
+        return;
+      }
+
       const target = event.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
@@ -42,8 +47,18 @@ export default function App() {
       }
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (editorMode === 'play') {
+        Input._setKey(event.key, false);
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [deleteSelected, editorMode]);
 
   if (!isLoaded) {

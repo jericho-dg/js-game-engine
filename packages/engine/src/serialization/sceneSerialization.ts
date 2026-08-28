@@ -4,6 +4,7 @@ import {
   type SerializedGameObject,
   type SerializedScene,
 } from '@js-game-engine/shared';
+import { ScriptComponent } from '../components/ScriptComponent';
 import { Camera2D } from '../components/Camera2D';
 import { Rotator } from '../components/Rotator';
 import { SpriteRenderer } from '../components/SpriteRenderer';
@@ -51,6 +52,14 @@ function serializeGameObject(obj: GameObject): SerializedGameObject {
       type: 'Rotator',
       enabled: component.enabled,
       speed: component.speed,
+    });
+  }
+
+  for (const component of obj.getComponents(ScriptComponent)) {
+    components.push({
+      type: 'ScriptComponent',
+      enabled: component.enabled,
+      scriptAssetId: component.scriptAssetId,
     });
   }
 
@@ -105,6 +114,10 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
       const rotator = obj.addComponent(new Rotator());
       rotator.enabled = data.enabled;
       rotator.speed = data.speed;
+    } else if (data.type === 'ScriptComponent') {
+      const script = obj.addComponent(new ScriptComponent());
+      script.enabled = data.enabled;
+      script.scriptAssetId = data.scriptAssetId;
     }
   }
 }

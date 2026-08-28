@@ -13,7 +13,7 @@ import { getSelectedObject, findObjectById, useSceneStore } from '../stores/scen
 export function SceneViewPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scene = useSceneStore((s) => s.scene);
+  const getActiveScene = useSceneStore((s) => s.getActiveScene);
   const sceneRevision = useSceneStore((s) => s.sceneRevision);
   const editorMode = useSceneStore((s) => s.editorMode);
   const selectedId = useSceneStore((s) => s.selectedId);
@@ -23,6 +23,7 @@ export function SceneViewPanel() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
+    const scene = getActiveScene();
     if (!canvas || !container || !scene) return;
 
     const runtime = new Runtime({ scene, canvas, showGrid: true });
@@ -70,16 +71,26 @@ export function SceneViewPanel() {
     observer.observe(container);
 
     const getWorldPoint = (clientX: number, clientY: number) => {
+      const activeScene = getActiveScene();
       const rect = container.getBoundingClientRect();
       const x = clientX - rect.left;
       const y = clientY - rect.top;
-      return screenToWorld(x, y, rect.width, rect.height, getSceneCamera(scene));
+      if (!activeScene) return Vector2.zero();
+      return screenToWorld(
+        x,
+        y,
+        rect.width,
+        rect.height,
+        getSceneCamera(activeScene),
+      );
     };
 
     const onPointerDown = (event: PointerEvent) => {
       if (editorMode !== 'edit') return;
+      const activeScene = getActiveScene();
+      if (!activeScene) return;
       const world = getWorldPoint(event.clientX, event.clientY);
-      const hit = hitTestScene(scene, world);
+      const hit = hitTestScene(activeScene, world);
       if (hit) {
         selectObject(hit.id);
         dragState.active = true;
@@ -95,7 +106,9 @@ export function SceneViewPanel() {
 
     const onPointerMove = (event: PointerEvent) => {
       if (!dragState.active || !dragState.objectId || editorMode !== 'edit') return;
-      const obj = findObjectById(scene, dragState.objectId);
+      const activeScene = getActiveScene();
+      if (!activeScene) return;
+      const obj = findObjectById(activeScene, dragState.objectId);
       if (!obj) return;
 
       const world = getWorldPoint(event.clientX, event.clientY);
@@ -129,7 +142,7 @@ export function SceneViewPanel() {
       container.removeEventListener('pointerleave', onPointerUp);
     };
   }, [
-    scene,
+    getActiveScene,
     sceneRevision,
     editorMode,
     selectedId,

@@ -1,5 +1,6 @@
 import { Scene } from './Scene';
 import { GameLoop } from './GameLoop';
+import { Time } from '../input/Input';
 import { Canvas2DRenderer } from '../rendering/Canvas2DRenderer';
 
 export interface RuntimeOptions {
@@ -27,7 +28,10 @@ export class Runtime {
     this.renderer = new Canvas2DRenderer({ showGrid: options.showGrid ?? true });
 
     this.loop = new GameLoop(
-      (dt) => this.scene.update(dt),
+      (dt) => {
+        Time.deltaTime = dt;
+        this.scene.update(dt);
+      },
       (fixedDt) => this.scene.fixedUpdate(fixedDt),
       () => this.renderFrame(),
     );

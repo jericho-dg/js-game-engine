@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   Camera2D,
   Rotator,
+  ScriptComponent,
   SpriteRenderer,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
 import { useAssetStore } from '../stores/assetStore';
+import { useScriptStore } from '../stores/scriptStore';
 import { getSelectedObject, useSceneStore } from '../stores/sceneStore';
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -13,6 +15,8 @@ const DEG_TO_RAD = Math.PI / 180;
 
 export function InspectorPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
+  const editorMode = useSceneStore((s) => s.editorMode);
+  const addScriptComponent = useSceneStore((s) => s.addScriptComponent);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
 
@@ -140,6 +144,25 @@ export function InspectorPanel() {
             />
           </ComponentSection>
         )}
+
+        {selected.getComponent(ScriptComponent) ? (
+          <ComponentSection title="Script">
+            <ScriptAssetField
+              objectId={selected.id}
+              script={selected.getComponent(ScriptComponent)!}
+            />
+          </ComponentSection>
+        ) : (
+          editorMode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => addScriptComponent(selected.id)}
+              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              Add Script Component
+            </button>
+          )
+        )}
       </div>
     </Panel>
   );
@@ -232,6 +255,47 @@ function SpriteAssetField({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function ScriptAssetField({
+  objectId,
+  script,
+}: {
+  objectId: string;
+  script: ScriptComponent;
+}) {
+  const scripts = useScriptStore((s) => s.scripts);
+  const openScript = useScriptStore((s) => s.openScript);
+  const assignScriptAsset = useSceneStore((s) => s.assignScriptAsset);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs text-[#858585]">Script</label>
+        <select
+          value={script.scriptAssetId ?? ''}
+          onChange={(e) => assignScriptAsset(objectId, e.target.value || null)}
+          className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
+        >
+          <option value="">None</option>
+          {scripts.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {script.scriptAssetId && (
+        <button
+          type="button"
+          onClick={() => openScript(script.scriptAssetId!)}
+          className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+        >
+          Open in Script Editor
+        </button>
+      )}
     </div>
   );
 }

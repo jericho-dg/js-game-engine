@@ -6,6 +6,8 @@ import {
 import { Panel } from '../components/Panel';
 import { projectService } from '../services/ProjectService';
 import { useAssetStore } from '../stores/assetStore';
+import { ScriptComponent } from '@js-game-engine/engine';
+import { useScriptStore } from '../stores/scriptStore';
 import { useSceneStore } from '../stores/sceneStore';
 
 export function ProjectPanel() {
@@ -16,6 +18,10 @@ export function ProjectPanel() {
   const scene = useSceneStore((s) => s.scene);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
   const selectObject = useSceneStore((s) => s.selectObject);
+  const scripts = useScriptStore((s) => s.scripts);
+  const openScript = useScriptStore((s) => s.openScript);
+  const createScript = useScriptStore((s) => s.createScript);
+  const deleteScript = useScriptStore((s) => s.deleteScript);
 
   const importFiles = async (files: FileList | File[]) => {
     if (!projectId) return;
@@ -39,6 +45,15 @@ export function ProjectPanel() {
     sprite.height = image.naturalHeight;
     sprite.color = Color.white();
     selectObject(obj.id);
+    markSceneChanged();
+  };
+
+  const removeScript = (scriptId: string) => {
+    if (!scene) return;
+    deleteScript(scriptId);
+    for (const root of scene.rootObjects) {
+      clearScriptReferences(root, scriptId);
+    }
     markSceneChanged();
   };
 
@@ -120,7 +135,61 @@ export function ProjectPanel() {
             </ul>
           )}
         </div>
+
+        <div className="shrink-0 border-t border-[#3c3c3c] p-2">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-medium text-[#cccccc]">Scripts</h3>
+            <button
+              type="button"
+              onClick={createScript}
+              className="rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              + New
+            </button>
+          </div>
+          {scripts.length === 0 ? (
+            <p className="text-xs text-[#858585]">No scripts yet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {scripts.map((script) => (
+                <li
+                  key={script.id}
+                  className="flex items-center justify-between rounded border border-[#3c3c3c] px-2 py-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => openScript(script.id)}
+                    className="truncate text-left text-xs text-[#cccccc] hover:text-white"
+                  >
+                    {script.name}
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete script"
+                    onClick={() => removeScript(script.id)}
+                    className="ml-2 shrink-0 text-[10px] text-[#858585] hover:text-[#ef5350]"
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </Panel>
   );
+}
+
+function clearScriptReferences(
+  obj: import('@js-game-engine/engine').GameObject,
+  scriptId: string,
+): void {
+  const script = obj.getComponent(ScriptComponent);
+  if (script?.scriptAssetId === scriptId) {
+    script.scriptAssetId = null;
+  }
+  for (const child of obj.children) {
+    clearScriptReferences(child, scriptId);
+  }
 }

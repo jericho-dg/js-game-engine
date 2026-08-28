@@ -2,12 +2,13 @@ import {
   PROJECT_VERSION,
   type AssetRecord,
   type ProjectData,
+  type ScriptRecord,
 } from '@js-game-engine/shared';
 import {
   Color,
   Camera2D,
-  Rotator,
   Scene,
+  ScriptComponent,
   SpriteRenderer,
   deserializeScene,
   serializeScene,
@@ -15,10 +16,13 @@ import {
 import { db } from './db';
 import { useAssetStore } from '../stores/assetStore';
 import { useSceneStore } from '../stores/sceneStore';
+import { useScriptStore } from '../stores/scriptStore';
+import { createDefaultSpinScript } from '../stores/scriptStore';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 
 function createDefaultProjectData(): ProjectData {
+  const spinScript = createDefaultSpinScript();
   const scene = new Scene('Main');
 
   const camera = scene.createGameObject('Main Camera');
@@ -29,7 +33,8 @@ function createDefaultProjectData(): ProjectData {
   playerSprite.color = Color.fromHex('#4fc3f7');
   playerSprite.width = 48;
   playerSprite.height = 48;
-  player.addComponent(new Rotator()).speed = 1.5;
+  const playerScript = player.addComponent(new ScriptComponent());
+  playerScript.scriptAssetId = spinScript.id;
 
   const ground = scene.createGameObject('Ground');
   ground.transform.localPosition.set(0, -120);
@@ -50,6 +55,7 @@ function createDefaultProjectData(): ProjectData {
     version: PROJECT_VERSION,
     name: 'Untitled Project',
     scene: serializeScene(scene),
+    scripts: [spinScript],
   };
 }
 
@@ -60,6 +66,7 @@ export class ProjectService {
     projectId: string;
     projectName: string;
     scene: Scene;
+    scripts: ScriptRecord[];
   }> {
     let stored = await db.projects.get(DEFAULT_PROJECT_ID);
 
@@ -74,6 +81,8 @@ export class ProjectService {
       await db.projects.put(stored);
     }
 
+    const scripts = stored.data.scripts ?? [];
+
     await useAssetStore.getState().loadForProject(stored.id);
     const scene = deserializeScene(stored.data.scene);
     hydrateSceneSprites(scene);
@@ -82,14 +91,17 @@ export class ProjectService {
       projectId: stored.id,
       projectName: stored.name,
       scene,
+      scripts,
     };
   }
 
   async save(scene: Scene, projectId: string, projectName: string): Promise<void> {
+    const scripts = useScriptStore.getState().scripts;
     const data: ProjectData = {
       version: PROJECT_VERSION,
       name: projectName,
       scene: serializeScene(scene),
+      scripts,
     };
 
     await db.projects.put({

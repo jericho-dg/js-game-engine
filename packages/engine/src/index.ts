@@ -14,6 +14,11 @@ export { Camera2D } from './components/Camera2D';
 export { SpriteRenderer } from './components/SpriteRenderer';
 export type { SpriteSource } from './components/SpriteRenderer';
 export { Rotator } from './components/Rotator';
+export { ScriptComponent } from './components/ScriptComponent';
+
+export { Behaviour } from './scripting/Behaviour';
+export { Input, Time, Debug } from './input/Input';
+export type { LogCallback } from './input/Input';
 
 export { Canvas2DRenderer } from './rendering/Canvas2DRenderer';
 export {

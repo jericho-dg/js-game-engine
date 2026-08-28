@@ -4,9 +4,11 @@ import { projectService } from '../services/ProjectService';
 export function Toolbar() {
   const projectName = useSceneStore((s) => s.projectName);
   const editorMode = useSceneStore((s) => s.editorMode);
+  const isPlayLoading = useSceneStore((s) => s.isPlayLoading);
   const scene = useSceneStore((s) => s.scene);
   const projectId = useSceneStore((s) => s.projectId);
-  const setEditorMode = useSceneStore((s) => s.setEditorMode);
+  const enterPlayMode = useSceneStore((s) => s.enterPlayMode);
+  const exitPlayMode = useSceneStore((s) => s.exitPlayMode);
 
   const save = async () => {
     if (!scene || !projectId) return;
@@ -17,9 +19,10 @@ export function Toolbar() {
     <header className="flex h-10 shrink-0 items-center gap-1 border-b border-[#3c3c3c] bg-[#2d2d2d] px-2">
       {editorMode === 'edit' ? (
         <ToolbarButton
-          label="Play"
+          label={isPlayLoading ? 'Loading...' : 'Play'}
           title="Enter play mode"
-          onClick={() => setEditorMode('play')}
+          disabled={isPlayLoading}
+          onClick={() => void enterPlayMode()}
         />
       ) : (
         <>
@@ -27,14 +30,17 @@ export function Toolbar() {
           <ToolbarButton
             label="Stop"
             title="Stop play mode"
-            onClick={() => setEditorMode('edit')}
+            onClick={exitPlayMode}
           />
         </>
       )}
       <div className="mx-2 h-5 w-px bg-[#3c3c3c]" />
       <ToolbarButton label="Save" title="Save project" onClick={() => void save()} />
       <ToolbarButton label="Export" title="Export project (coming soon)" disabled />
-      <span className="ml-auto text-xs text-[#858585]">{projectName}</span>
+      <span className="ml-auto text-xs text-[#858585]">
+        {projectName}
+        {editorMode === 'play' ? ' — Playing' : ''}
+      </span>
     </header>
   );
 }
