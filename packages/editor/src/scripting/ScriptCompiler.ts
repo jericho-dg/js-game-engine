@@ -2,8 +2,11 @@ import * as esbuild from 'esbuild-wasm';
 import wasmURL from 'esbuild-wasm/esbuild.wasm?url';
 import {
   Behaviour,
+  BoxCollider2D,
+  Collision2D,
   Debug,
   Input,
+  Rigidbody2D,
   Time,
   Vector2,
 } from '@js-game-engine/engine';
@@ -12,6 +15,8 @@ import type { ScriptRecord } from '@js-game-engine/shared';
 let esbuildReady: Promise<void> | null = null;
 let buildQueue: Promise<unknown> = Promise.resolve();
 const compileCache = new Map<string, new () => Behaviour>();
+/** Bump when ENGINE_SHIM changes so cached script classes are invalidated. */
+const COMPILE_VERSION = 2;
 
 export function initScriptCompiler(): Promise<void> {
   if (!esbuildReady) {
@@ -35,8 +40,14 @@ export class Behaviour {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
   }
-  getRigidbody2D() { return null; }
-  getBoxCollider2D() { return null; }
+  getRigidbody2D() {
+    if (!this.gameObject) return null;
+    return this.gameObject.getComponent(globalThis.__JGE__.Rigidbody2D);
+  }
+  getBoxCollider2D() {
+    if (!this.gameObject) return null;
+    return this.gameObject.getComponent(globalThis.__JGE__.BoxCollider2D);
+  }
   onAwake() {}
   onStart() {}
   onUpdate(_dt) {}
@@ -67,6 +78,11 @@ function enqueueBuild<T>(task: () => Promise<T>): Promise<T> {
     () => undefined,
   );
   return result;
+}
+
+/** Unblock the compile queue after a hung esbuild build times out. */
+export function resetBuildQueue(): void {
+  buildQueue = Promise.resolve();
 }
 
 export async function compileScript(source: string): Promise<string> {
@@ -133,7 +149,7 @@ export function instantiateScript(
 export async function compileScriptRecord(
   script: ScriptRecord,
 ): Promise<new () => Behaviour> {
-  const cacheKey = `${script.id}\0${script.source}`;
+  const cacheKey = `${COMPILE_VERSION}\0${script.id}\0${script.source}`;
   const cached = compileCache.get(cacheKey);
   if (cached) return cached;
 
@@ -150,6 +166,9 @@ function installEngineGlobals(): void {
     Debug,
     Vector2,
     Behaviour,
+    Rigidbody2D,
+    BoxCollider2D,
+    Collision2D,
   };
 }
 

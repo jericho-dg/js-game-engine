@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boundsOverlap, separationVector } from '../physics/Collision2D';
+import { boundsOverlap, minimumTranslationVector, separationVector } from '../physics/Collision2D';
 
 describe('Collision2D utils', () => {
   it('detects overlapping bounds', () => {
@@ -27,5 +27,14 @@ describe('Collision2D utils', () => {
     );
     expect(sep.y).toBe(0);
     expect(Math.abs(sep.x)).toBe(2);
+  });
+
+  it('pushes an object resting on top of another upward', () => {
+    const mtv = minimumTranslationVector(
+      { minX: 0, minY: 5, maxX: 10, maxY: 15 },
+      { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+    );
+    expect(mtv.x).toBe(0);
+    expect(mtv.y).toBe(5);
   });
 });

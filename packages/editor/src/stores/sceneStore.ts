@@ -35,7 +35,7 @@ interface SceneState {
   markSceneChanged: () => void;
   setScene: (scene: Scene) => void;
   initProject: (projectId: string, projectName: string, scene: Scene) => void;
-  enterPlayMode: () => void;
+  enterPlayMode: () => Promise<void>;
   exitPlayMode: () => void;
   getActiveScene: () => Scene | null;
   deleteSelected: () => void;
@@ -45,6 +45,9 @@ interface SceneState {
   addScriptComponent: (objectId: string) => void;
   addBoxCollider2D: (objectId: string) => void;
   addRigidbody2D: (objectId: string) => void;
+  removeScriptComponent: (objectId: string) => void;
+  removeBoxCollider2D: (objectId: string) => void;
+  removeRigidbody2D: (objectId: string) => void;
   resetProject: () => Promise<void>;
 }
 
@@ -87,26 +90,18 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     return editorMode === 'play' ? playScene : scene;
   },
 
-  enterPlayMode: () => {
+  enterPlayMode: async () => {
     const { scene } = get();
     if (!scene) return;
 
     const scriptState = useScriptStore.getState();
-    const scripts = scriptState.scripts;
+    await scriptState.ensureScriptsCompiledForScene(scene);
 
-    if (!scriptState.scriptsCompiled) {
-      useConsoleStore.getState().clear();
-      useConsoleStore.getState().log(
-        'error',
-        'Scripts are still compiling. Try play again in a moment.',
-      );
-      return;
-    }
-
+    const scripts = useScriptStore.getState().scripts;
     const blockers = getPlayBlockers(scene, scripts, {
-      hasUnsavedScripts: scriptState.hasUnsavedScripts(),
-      scriptErrors: scriptState.scriptErrors,
-      isScriptPlayReady: (script) => scriptState.isScriptPlayReady(script),
+      hasUnsavedScripts: useScriptStore.getState().hasUnsavedScripts(),
+      scriptErrors: useScriptStore.getState().scriptErrors,
+      isScriptPlayReady: (script) => useScriptStore.getState().isScriptPlayReady(script),
     });
 
     if (blockers.length > 0) {
@@ -254,6 +249,33 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const obj = findObjectById(scene, objectId);
     if (!obj || obj.getComponent(Rigidbody2D)) return;
     obj.addComponent(new Rigidbody2D());
+    get().markSceneChanged();
+  },
+
+  removeScriptComponent: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj?.removeComponent(ScriptComponent)) return;
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    get().markSceneChanged();
+  },
+
+  removeBoxCollider2D: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj?.removeComponent(BoxCollider2D)) return;
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    get().markSceneChanged();
+  },
+
+  removeRigidbody2D: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj?.removeComponent(Rigidbody2D)) return;
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
     get().markSceneChanged();
   },
 

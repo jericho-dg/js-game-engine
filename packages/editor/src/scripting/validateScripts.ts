@@ -1,6 +1,7 @@
 import { Scene, ScriptComponent, type Behaviour } from '@js-game-engine/engine';
 import type { ScriptRecord } from '@js-game-engine/shared';
-import { compileScriptRecord } from './ScriptCompiler';
+import { compileScriptRecord, resetBuildQueue } from './ScriptCompiler';
+import { isCompileTimeoutError, withCompileTimeout } from './compileTimeout';
 import {
   registerCompiledScript,
   unregisterCompiledScript,
@@ -17,11 +18,16 @@ export async function validateAndCompileScript(
   script: ScriptRecord,
 ): Promise<string | null> {
   try {
-    const ScriptClass = await compileScriptRecord(script);
-    smokeTestScriptClass(ScriptClass);
-    registerCompiledScript(script.id, script.source, ScriptClass);
+    await withCompileTimeout(async () => {
+      const ScriptClass = await compileScriptRecord(script);
+      smokeTestScriptClass(ScriptClass);
+      registerCompiledScript(script.id, script.source, ScriptClass);
+    });
     return null;
   } catch (error) {
+    if (isCompileTimeoutError(error)) {
+      resetBuildQueue();
+    }
     unregisterCompiledScript(script.id);
     return error instanceof Error ? error.message : String(error);
   }

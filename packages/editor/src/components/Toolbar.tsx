@@ -5,7 +5,7 @@ import { projectService } from '../services/ProjectService';
 export function Toolbar() {
   const projectName = useSceneStore((s) => s.projectName);
   const editorMode = useSceneStore((s) => s.editorMode);
-  const scriptsCompiled = useScriptStore((s) => s.scriptsCompiled);
+  const isCompilingScripts = useScriptStore((s) => s.isCompilingScripts);
   const scene = useSceneStore((s) => s.scene);
   const projectId = useSceneStore((s) => s.projectId);
   const enterPlayMode = useSceneStore((s) => s.enterPlayMode);
@@ -31,9 +31,9 @@ export function Toolbar() {
       {editorMode === 'edit' ? (
         <ToolbarButton
           label="Play"
-          title={scriptsCompiled ? 'Enter play mode' : 'Compiling scripts...'}
-          disabled={!scriptsCompiled}
-          onClick={enterPlayMode}
+          title={isCompilingScripts ? 'Compiling scripts…' : 'Enter play mode'}
+          disabled={isCompilingScripts}
+          onClick={() => void enterPlayMode()}
         />
       ) : (
         <>

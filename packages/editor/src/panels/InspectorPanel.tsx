@@ -21,6 +21,9 @@ export function InspectorPanel() {
   const addScriptComponent = useSceneStore((s) => s.addScriptComponent);
   const addBoxCollider2D = useSceneStore((s) => s.addBoxCollider2D);
   const addRigidbody2D = useSceneStore((s) => s.addRigidbody2D);
+  const removeScriptComponent = useSceneStore((s) => s.removeScriptComponent);
+  const removeBoxCollider2D = useSceneStore((s) => s.removeBoxCollider2D);
+  const removeRigidbody2D = useSceneStore((s) => s.removeRigidbody2D);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
 
@@ -150,7 +153,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(ScriptComponent) ? (
-          <ComponentSection title="Script">
+          <ComponentSection
+            title="Script"
+            onRemove={editorMode === 'edit' ? () => removeScriptComponent(selected.id) : undefined}
+          >
             <ScriptAssetField
               objectId={selected.id}
               script={selected.getComponent(ScriptComponent)!}
@@ -169,7 +175,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(BoxCollider2D) ? (
-          <ComponentSection title="Box Collider 2D">
+          <ComponentSection
+            title="Box Collider 2D"
+            onRemove={editorMode === 'edit' ? () => removeBoxCollider2D(selected.id) : undefined}
+          >
             <NumberField
               key={`${selected.id}-col-w`}
               label="Width"
@@ -223,7 +232,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(Rigidbody2D) ? (
-          <ComponentSection title="Rigidbody 2D">
+          <ComponentSection
+            title="Rigidbody 2D"
+            onRemove={editorMode === 'edit' ? () => removeRigidbody2D(selected.id) : undefined}
+          >
             <NumberField
               key={`${selected.id}-rb-vx`}
               label="Velocity X"
@@ -276,15 +288,27 @@ export function InspectorPanel() {
 function ComponentSection({
   title,
   children,
+  onRemove,
 }: {
   title: string;
   children: React.ReactNode;
+  onRemove?: () => void;
 }) {
   return (
     <section className="rounded border border-[#3c3c3c]">
-      <h3 className="border-b border-[#3c3c3c] px-2 py-1 text-xs font-medium text-[#cccccc]">
-        {title}
-      </h3>
+      <div className="flex items-center justify-between border-b border-[#3c3c3c] px-2 py-1">
+        <h3 className="text-xs font-medium text-[#cccccc]">{title}</h3>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded px-1.5 py-0.5 text-[10px] text-[#858585] hover:bg-[#3c3c3c] hover:text-[#ef5350]"
+            title={`Remove ${title}`}
+          >
+            Remove
+          </button>
+        )}
+      </div>
       <div className="space-y-2 p-2">{children}</div>
     </section>
   );

@@ -14,6 +14,7 @@ import {
   Rigidbody2D,
   deserializeScene,
   serializeScene,
+  type GameObject,
 } from '@js-game-engine/engine';
 import { db } from './db';
 import { useAssetStore } from '../stores/assetStore';
@@ -22,6 +23,54 @@ import { useScriptStore } from '../stores/scriptStore';
 import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
 
 const DEFAULT_PROJECT_ID = 'default-project';
+const LEGACY_SPIN_SCRIPT_ID = 'script-spin-demo';
+const CURRENT_PLAYER_SCRIPT_ID = 'script-player-move-demo';
+
+function migrateLoadedProject(scene: Scene, scripts: ScriptRecord[]): ScriptRecord[] {
+  let nextScripts = scripts;
+
+  const hasCurrentPlayerScript = scripts.some((script) => script.id === CURRENT_PLAYER_SCRIPT_ID);
+  if (!hasCurrentPlayerScript) {
+    const spinIndex = scripts.findIndex((script) => script.id === LEGACY_SPIN_SCRIPT_ID);
+    if (spinIndex !== -1) {
+      nextScripts = scripts.map((script, index) =>
+        index === spinIndex ? createDefaultPlayerMoveScript() : script,
+      );
+    }
+  }
+
+  const scriptIds = new Set(nextScripts.map((script) => script.id));
+  if (scriptIds.has(CURRENT_PLAYER_SCRIPT_ID)) {
+    remapScriptReferences(scene, LEGACY_SPIN_SCRIPT_ID, CURRENT_PLAYER_SCRIPT_ID);
+  }
+
+  return nextScripts;
+}
+
+function remapScriptReferences(
+  scene: Scene,
+  fromScriptId: string,
+  toScriptId: string,
+): void {
+  for (const root of scene.rootObjects) {
+    remapScriptReferencesRecursive(root, fromScriptId, toScriptId);
+  }
+}
+
+function remapScriptReferencesRecursive(
+  obj: GameObject,
+  fromScriptId: string,
+  toScriptId: string,
+): void {
+  for (const component of obj.getComponents(ScriptComponent)) {
+    if (component.scriptAssetId === fromScriptId) {
+      component.scriptAssetId = toScriptId;
+    }
+  }
+  for (const child of obj.children) {
+    remapScriptReferencesRecursive(child, fromScriptId, toScriptId);
+  }
+}
 
 function createDefaultProjectData(): ProjectData {
   const playerScript = createDefaultPlayerMoveScript();
@@ -96,10 +145,11 @@ export class ProjectService {
       await db.projects.put(stored);
     }
 
-    const scripts = stored.data.scripts ?? [];
+    let scripts = stored.data.scripts ?? [];
 
     await useAssetStore.getState().loadForProject(stored.id);
     const scene = deserializeScene(stored.data.scene);
+    scripts = migrateLoadedProject(scene, scripts);
     hydrateSceneSprites(scene);
 
     return {

@@ -6,11 +6,12 @@ import type { Scene } from '../core/Scene';
 import {
   boundsOverlap,
   Collision2D,
-  separationVector,
+  minimumTranslationVector,
   type Bounds,
 } from './Collision2D';
 
 const GRAVITY = -980;
+const SOLVER_ITERATIONS = 4;
 
 interface ColliderEntry {
   object: GameObject;
@@ -45,29 +46,42 @@ export class PhysicsWorld {
     const nextTriggerPairs = new Set<string>();
     const nextCollisionPairs = new Set<string>();
 
-    for (let i = 0; i < entries.length; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        const a = entries[i];
-        const b = entries[j];
-        if (!boundsOverlap(a.bounds, b.bounds)) continue;
+    for (let iteration = 0; iteration < SOLVER_ITERATIONS; iteration++) {
+      let resolvedAny = false;
 
-        const key = pairKey(a.object.id, b.object.id);
-        const isTrigger = a.collider.isTrigger || b.collider.isTrigger;
+      for (let i = 0; i < entries.length; i++) {
+        for (let j = i + 1; j < entries.length; j++) {
+          const a = entries[i];
+          const b = entries[j];
+          refreshBounds([a, b]);
+          if (!boundsOverlap(a.bounds, b.bounds)) continue;
 
-        if (isTrigger) {
-          nextTriggerPairs.add(key);
-          if (!this.activeTriggerPairs.has(key)) {
-            dispatchTriggerEnter(a, b);
-          }
-        } else {
-          resolveSolidOverlap(a, b);
-          refreshBounds(entries);
-          nextCollisionPairs.add(key);
-          if (!this.activeCollisionPairs.has(key)) {
-            dispatchCollisionEnter(a, b);
+          const key = pairKey(a.object.id, b.object.id);
+          const isTrigger = a.collider.isTrigger || b.collider.isTrigger;
+
+          if (isTrigger) {
+            if (iteration === 0) {
+              nextTriggerPairs.add(key);
+              if (!this.activeTriggerPairs.has(key)) {
+                dispatchTriggerEnter(a, b);
+              }
+            }
+          } else {
+            if (resolveSolidOverlap(a, b)) {
+              resolvedAny = true;
+              refreshBounds(entries);
+            }
+            if (iteration === 0) {
+              nextCollisionPairs.add(key);
+              if (!this.activeCollisionPairs.has(key)) {
+                dispatchCollisionEnter(a, b);
+              }
+            }
           }
         }
       }
+
+      if (!resolvedAny) break;
     }
 
     for (const key of this.activeTriggerPairs) {
@@ -130,19 +144,42 @@ function integrateRigidbodies(entries: ColliderEntry[], dt: number): void {
   }
 }
 
-function resolveSolidOverlap(a: ColliderEntry, b: ColliderEntry): void {
-  const sep = separationVector(a.bounds, b.bounds);
-  const aDynamic = a.rigidbody && !a.rigidbody.isKinematic;
-  const bDynamic = b.rigidbody && !b.rigidbody.isKinematic;
+function resolveSolidOverlap(a: ColliderEntry, b: ColliderEntry): boolean {
+  const mtvForA = minimumTranslationVector(a.bounds, b.bounds);
+  const mtvForB = minimumTranslationVector(b.bounds, a.bounds);
+  const aDynamic = a.rigidbody && a.rigidbody.enabled && !a.rigidbody.isKinematic;
+  const bDynamic = b.rigidbody && b.rigidbody.enabled && !b.rigidbody.isKinematic;
+
+  if (!aDynamic && !bDynamic) return false;
 
   if (aDynamic && bDynamic) {
-    moveObject(a.object, sep.x / 2, sep.y / 2);
-    moveObject(b.object, -sep.x / 2, -sep.y / 2);
-  } else if (aDynamic) {
-    moveObject(a.object, sep.x, sep.y);
-  } else if (bDynamic) {
-    moveObject(b.object, -sep.x, -sep.y);
+    moveObject(a.object, mtvForA.x / 2, mtvForA.y / 2);
+    moveObject(b.object, mtvForB.x / 2, mtvForB.y / 2);
+    cancelApproachVelocity(a.rigidbody!, mtvForA.x / 2, mtvForA.y / 2);
+    cancelApproachVelocity(b.rigidbody!, mtvForB.x / 2, mtvForB.y / 2);
+    return true;
   }
+
+  if (aDynamic) {
+    moveObject(a.object, mtvForA.x, mtvForA.y);
+    cancelApproachVelocity(a.rigidbody!, mtvForA.x, mtvForA.y);
+    return true;
+  }
+
+  moveObject(b.object, mtvForB.x, mtvForB.y);
+  cancelApproachVelocity(b.rigidbody!, mtvForB.x, mtvForB.y);
+  return true;
+}
+
+function cancelApproachVelocity(body: Rigidbody2D, sepX: number, sepY: number): void {
+  if (Math.abs(sepY) >= Math.abs(sepX)) {
+    if (sepY > 0 && body.velocity.y < 0) body.velocity.y = 0;
+    if (sepY < 0 && body.velocity.y > 0) body.velocity.y = 0;
+    return;
+  }
+
+  if (sepX > 0 && body.velocity.x < 0) body.velocity.x = 0;
+  if (sepX < 0 && body.velocity.x > 0) body.velocity.x = 0;
 }
 
 function moveObject(obj: GameObject, dx: number, dy: number): void {

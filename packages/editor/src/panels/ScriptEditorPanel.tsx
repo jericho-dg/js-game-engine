@@ -9,6 +9,7 @@ import { useSceneStore } from '../stores/sceneStore';
 export function ScriptEditorPanel() {
   const scripts = useScriptStore((s) => s.scripts);
   const activeScriptId = useScriptStore((s) => s.activeScriptId);
+  const drafts = useScriptStore((s) => s.drafts);
   const setDraft = useScriptStore((s) => s.setDraft);
   const getEditorSource = useScriptStore((s) => s.getEditorSource);
   const isDirty = useScriptStore((s) => s.isDirty);
@@ -90,24 +91,33 @@ export function ScriptEditorPanel() {
             {isSavingScript ? 'Saving...' : 'Save'}
           </button>
           {scripts.map((script) => {
-            const dirty = isDirty(script.id);
+            const dirty =
+              script.id in drafts
+                ? drafts[script.id] !== script.source
+                : isDirty(script.id);
             const error = scriptErrors[script.id];
+            const isActive = script.id === activeScriptId;
+
+            let tabClass = 'shrink-0 rounded px-2 py-0.5 text-xs hover:bg-[#3c3c3c] ';
+            if (isActive) {
+              tabClass += dirty ? 'bg-[#094771] text-[#ffca28]' : 'bg-[#094771] text-white';
+            } else if (error) {
+              tabClass += 'text-[#ef5350]';
+            } else if (dirty) {
+              tabClass += 'text-[#ffca28]';
+            } else {
+              tabClass += 'text-[#cccccc]';
+            }
+
             return (
               <button
                 key={script.id}
                 type="button"
                 onClick={() => openScript(script.id)}
-                className={`shrink-0 rounded px-2 py-0.5 text-xs ${
-                  script.id === activeScriptId
-                    ? 'bg-[#094771] text-white'
-                    : error
-                      ? 'text-[#ef5350] hover:bg-[#3c3c3c]'
-                      : 'text-[#cccccc] hover:bg-[#3c3c3c]'
-                }`}
-                title={error ?? undefined}
+                className={tabClass}
+                title={error ?? (dirty ? 'Unsaved changes' : undefined)}
               >
                 {script.name}
-                {dirty ? '*' : ''}
               </button>
             );
           })}

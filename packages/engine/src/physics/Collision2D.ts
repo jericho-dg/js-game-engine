@@ -30,20 +30,27 @@ export function boundsCenter(bounds: Bounds): { x: number; y: number } {
   };
 }
 
-/** Smallest separation vector to resolve overlap (world space). */
+/** Minimum translation vector to move bounds `a` out of overlap with `b`. */
+export function minimumTranslationVector(a: Bounds, b: Bounds): { x: number; y: number } {
+  const leftPen = a.maxX - b.minX;
+  const rightPen = b.maxX - a.minX;
+  const downPen = a.maxY - b.minY;
+  const upPen = b.maxY - a.minY;
+
+  const options = [
+    { x: -leftPen, y: 0, depth: leftPen },
+    { x: rightPen, y: 0, depth: rightPen },
+    { x: 0, y: -downPen, depth: downPen },
+    { x: 0, y: upPen, depth: upPen },
+  ].filter((option) => option.depth > 0);
+
+  if (options.length === 0) return { x: 0, y: 0 };
+
+  const best = options.reduce((min, option) => (option.depth < min.depth ? option : min));
+  return { x: best.x, y: best.y };
+}
+
+/** @deprecated Use minimumTranslationVector */
 export function separationVector(a: Bounds, b: Bounds): { x: number; y: number } {
-  const overlapX = Math.min(a.maxX - b.minX, b.maxX - a.minX);
-  const overlapY = Math.min(a.maxY - b.minY, b.maxY - a.minY);
-
-  if (overlapX < overlapY) {
-    const centerA = boundsCenter(a).x;
-    const centerB = boundsCenter(b).x;
-    const direction = centerA < centerB ? -1 : 1;
-    return { x: direction * overlapX, y: 0 };
-  }
-
-  const centerA = boundsCenter(a).y;
-  const centerB = boundsCenter(b).y;
-  const direction = centerA < centerB ? -1 : 1;
-  return { x: 0, y: direction * overlapY };
+  return minimumTranslationVector(a, b);
 }

@@ -5,7 +5,7 @@ import {
   scriptFileName,
   sanitizeScriptClassName,
 } from '../scripting/scriptNaming';
-import { validateAndCompileScript } from '../scripting/validateScripts';
+import { validateAndCompileScript, collectSceneScriptIds } from '../scripting/validateScripts';
 import {
   clearCompiledScripts,
   getPlayReadyScriptClass,
@@ -20,7 +20,7 @@ interface ScriptState {
   activeScriptId: string | null;
   isNewScriptDialogOpen: boolean;
   isSavingScript: boolean;
-  scriptsCompiled: boolean;
+  isCompilingScripts: boolean;
   setScripts: (scripts: ScriptRecord[]) => void;
   openScript: (id: string) => void;
   openNewScriptDialog: () => void;
@@ -33,6 +33,7 @@ interface ScriptState {
   isScriptPlayReady: (script: ScriptRecord) => boolean;
   saveScript: (id: string) => Promise<boolean>;
   compileAllSavedScripts: () => Promise<void>;
+  ensureScriptsCompiledForScene: (scene: import('@js-game-engine/engine').Scene) => Promise<void>;
   deleteScript: (id: string) => ScriptRecord[];
   getScript: (id: string) => ScriptRecord | undefined;
 }
@@ -44,7 +45,7 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
   activeScriptId: null,
   isNewScriptDialogOpen: false,
   isSavingScript: false,
-  scriptsCompiled: false,
+  isCompilingScripts: false,
 
   setScripts: (scripts) => {
     clearCompiledScripts();
@@ -52,7 +53,6 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
       scripts,
       drafts: {},
       scriptErrors: Object.fromEntries(scripts.map((script) => [script.id, null])),
-      scriptsCompiled: scripts.length === 0,
     });
   },
 
@@ -78,7 +78,6 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
     void validateAndCompileScript(script).then((error) => {
       set((state) => ({
         scriptErrors: { ...state.scriptErrors, [script.id]: error },
-        scriptsCompiled: true,
       }));
     });
     return script;
@@ -143,15 +142,76 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
   },
 
   compileAllSavedScripts: async () => {
+    if (get().isCompilingScripts) return;
+
+    set({ isCompilingScripts: true });
     const scripts = get().scripts;
     const errors: Record<string, string | null> = { ...get().scriptErrors };
 
-    for (const script of scripts) {
-      const error = await validateAndCompileScript(script);
-      errors[script.id] = error;
+    try {
+      for (const script of scripts) {
+        const error = await validateAndCompileScript(script);
+        errors[script.id] = error;
+        if (error) {
+          useConsoleStore.getState().log('error', `[Compile] ${script.name}: ${error}`);
+        }
+      }
+      set({ scriptErrors: errors });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      useConsoleStore.getState().log('error', `[Compile] ${message}`);
+    } finally {
+      set({ isCompilingScripts: false });
+    }
+  },
+
+  ensureScriptsCompiledForScene: async (scene) => {
+    if (get().isCompilingScripts) {
+      await new Promise<void>((resolve) => {
+        if (!useScriptStore.getState().isCompilingScripts) {
+          resolve();
+          return;
+        }
+
+        const unsubscribe = useScriptStore.subscribe((state) => {
+          if (!state.isCompilingScripts) {
+            unsubscribe();
+            resolve();
+          }
+        });
+      });
     }
 
-    set({ scriptErrors: errors, scriptsCompiled: true });
+    const scripts = get().scripts;
+    const scriptMap = new Map(scripts.map((script) => [script.id, script]));
+    const pending = collectSceneScriptIds(scene)
+      .map((scriptId) => scriptMap.get(scriptId))
+      .filter((script): script is ScriptRecord => {
+        if (!script) return false;
+        if (get().isDirty(script.id)) return false;
+        return !get().isScriptPlayReady(script);
+      });
+
+    if (pending.length === 0) return;
+
+    set({ isCompilingScripts: true });
+    const errors: Record<string, string | null> = { ...get().scriptErrors };
+
+    try {
+      for (const script of pending) {
+        const error = await validateAndCompileScript(script);
+        errors[script.id] = error;
+        if (error) {
+          useConsoleStore.getState().log('error', `[Compile] ${script.name}: ${error}`);
+        }
+      }
+      set({ scriptErrors: errors });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      useConsoleStore.getState().log('error', `[Compile] ${message}`);
+    } finally {
+      set({ isCompilingScripts: false });
+    }
   },
 
   deleteScript: (id) => {
