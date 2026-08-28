@@ -7,6 +7,7 @@ interface AssetState {
   imageCache: Map<string, HTMLImageElement>;
   thumbnailCache: Map<string, string>;
   loadForProject: (projectId: string) => Promise<void>;
+  clearAll: () => void;
   registerAsset: (record: AssetRecord, image: HTMLImageElement, blob: Blob) => void;
   removeAsset: (assetId: string) => void;
   getImage: (assetId: string) => HTMLImageElement | undefined;
@@ -41,6 +42,18 @@ export const useAssetStore = create<AssetState>((set, get) => ({
     }
 
     set({ assets, imageCache, thumbnailCache });
+  },
+
+  clearAll: () => {
+    const { thumbnailCache } = get();
+    for (const url of thumbnailCache.values()) {
+      URL.revokeObjectURL(url);
+    }
+    set({
+      assets: [],
+      imageCache: new Map(),
+      thumbnailCache: new Map(),
+    });
   },
 
   registerAsset: (record, image, blob) => {

@@ -11,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { ProjectPanel } from './panels/ProjectPanel';
 import { ScriptEditorPanel } from './panels/ScriptEditorPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { NewScriptDialog } from './components/NewScriptDialog';
 import { Input } from '@js-game-engine/engine';
 import { useSceneStore } from './stores/sceneStore';
 
@@ -71,6 +72,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
+      <NewScriptDialog />
       <Toolbar />
 
       <PanelGroup direction="vertical" className="min-h-0 flex-1">

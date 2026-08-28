@@ -4,31 +4,31 @@ import {
   type Behaviour,
 } from '@js-game-engine/engine';
 import type { ScriptRecord } from '@js-game-engine/shared';
-import { compileScriptRecord } from './ScriptCompiler';
+import { getPlayReadyScriptClass } from './scriptCompileRegistry';
 
 export interface ScriptAttachResult {
   errors: Array<{ objectName: string; scriptName: string; message: string }>;
 }
 
-export async function attachScriptsToScene(
+export function attachScriptsToScene(
   scene: Scene,
   scripts: ScriptRecord[],
-): Promise<ScriptAttachResult> {
+): ScriptAttachResult {
   const scriptMap = new Map(scripts.map((script) => [script.id, script]));
   const errors: ScriptAttachResult['errors'] = [];
 
   for (const root of scene.rootObjects) {
-    await attachScriptsRecursive(root, scriptMap, errors);
+    attachScriptsRecursive(root, scriptMap, errors);
   }
 
   return { errors };
 }
 
-async function attachScriptsRecursive(
+function attachScriptsRecursive(
   obj: import('@js-game-engine/engine').GameObject,
   scriptMap: Map<string, ScriptRecord>,
   errors: ScriptAttachResult['errors'],
-): Promise<void> {
+): void {
   for (const component of obj.getComponents(ScriptComponent)) {
     if (!component.scriptAssetId) continue;
 
@@ -42,10 +42,19 @@ async function attachScriptsRecursive(
       continue;
     }
 
+    const ScriptClass = getPlayReadyScriptClass(script.id, script.source);
+    if (!ScriptClass) {
+      errors.push({
+        objectName: obj.name,
+        scriptName: script.name,
+        message: 'Script is not compiled. Save the script first.',
+      });
+      continue;
+    }
+
     try {
-      const ScriptClass = await compileScriptRecord(script);
       const instance: Behaviour = new ScriptClass();
-      component.setBehaviour(instance);
+      component.setBehaviour(instance, script.name);
     } catch (error) {
       errors.push({
         objectName: obj.name,
@@ -56,7 +65,7 @@ async function attachScriptsRecursive(
   }
 
   for (const child of obj.children) {
-    await attachScriptsRecursive(child, scriptMap, errors);
+    attachScriptsRecursive(child, scriptMap, errors);
   }
 }
 

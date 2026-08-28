@@ -10,10 +10,15 @@ import {
 import type { ScriptRecord } from '@js-game-engine/shared';
 
 let esbuildReady: Promise<void> | null = null;
+let buildQueue: Promise<unknown> = Promise.resolve();
+const compileCache = new Map<string, new () => Behaviour>();
 
 export function initScriptCompiler(): Promise<void> {
   if (!esbuildReady) {
-    esbuildReady = esbuild.initialize({ wasmURL });
+    esbuildReady = esbuild.initialize({ wasmURL }).catch((error) => {
+      esbuildReady = null;
+      throw error;
+    });
   }
   return esbuildReady;
 }
@@ -24,6 +29,12 @@ export class Vector2 {
   set(x, y) { this.x = x; this.y = y; return this; }
 }
 export class Behaviour {
+  gameObject = null;
+  transform = null;
+  bind(gameObject) {
+    this.gameObject = gameObject;
+    this.transform = gameObject.transform;
+  }
   onAwake() {}
   onStart() {}
   onUpdate(_dt) {}
@@ -35,71 +46,87 @@ export const Time = globalThis.__JGE__.Time;
 export const Debug = globalThis.__JGE__.Debug;
 `;
 
-export async function compileScript(source: string): Promise<string> {
-  await initScriptCompiler();
+function enqueueBuild<T>(task: () => Promise<T>): Promise<T> {
+  const result = buildQueue.then(task, task);
+  buildQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
-  const wrappedSource = `
+export async function compileScript(source: string): Promise<string> {
+  return enqueueBuild(async () => {
+    await initScriptCompiler();
+
+    const wrappedSource = `
 import { Behaviour, Vector2, Input, Time, Debug } from 'engine-shim';
 ${source}
 `;
 
-  const result = await esbuild.build({
-    stdin: {
-      contents: wrappedSource,
-      loader: 'ts',
-      resolveDir: '/',
-    },
-    plugins: [
-      {
-        name: 'engine-shim',
-        setup(build) {
-          build.onResolve({ filter: /^engine-shim$/ }, () => ({
-            path: 'engine-shim',
-            namespace: 'engine-shim',
-          }));
-          build.onLoad({ filter: /.*/, namespace: 'engine-shim' }, () => ({
-            contents: ENGINE_SHIM,
-            loader: 'js',
-          }));
-        },
+    const result = await esbuild.build({
+      stdin: {
+        contents: wrappedSource,
+        loader: 'ts',
+        resolveDir: '/',
       },
-    ],
-    write: false,
-    bundle: true,
-    format: 'esm',
-    target: 'es2022',
-  });
+      plugins: [
+        {
+          name: 'engine-shim',
+          setup(build) {
+            build.onResolve({ filter: /^engine-shim$/ }, () => ({
+              path: 'engine-shim',
+              namespace: 'engine-shim',
+            }));
+            build.onLoad({ filter: /.*/, namespace: 'engine-shim' }, () => ({
+              contents: ENGINE_SHIM,
+              loader: 'js',
+            }));
+          },
+        },
+      ],
+      write: false,
+      bundle: true,
+      format: 'cjs',
+      target: 'es2022',
+    });
 
-  const output = result.outputFiles[0]?.text;
-  if (!output) throw new Error('Script compilation produced no output.');
-  return output;
+    const output = result.outputFiles[0]?.text;
+    if (!output) throw new Error('Script compilation produced no output.');
+    return output;
+  });
 }
 
-export async function instantiateScript(
+export function instantiateScript(
   compiledJs: string,
-): Promise<new () => Behaviour> {
+): new () => Behaviour {
   installEngineGlobals();
 
-  const blob = new Blob([compiledJs], { type: 'text/javascript' });
-  const url = URL.createObjectURL(blob);
+  const module = { exports: {} as { default?: new () => Behaviour } };
+  const run = new Function('module', 'exports', compiledJs) as (
+    module: { exports: { default?: new () => Behaviour } },
+    exports: { default?: new () => Behaviour },
+  ) => void;
+  run(module, module.exports);
 
-  try {
-    const module = await import(/* @vite-ignore */ url);
-    const ScriptClass = module.default;
-    if (typeof ScriptClass !== 'function') {
-      throw new Error('Script must export a default class extending Behaviour.');
-    }
-    return ScriptClass;
-  } finally {
-    URL.revokeObjectURL(url);
+  const ScriptClass = module.exports.default;
+  if (typeof ScriptClass !== 'function') {
+    throw new Error('Script must export a default class extending Behaviour.');
   }
+  return ScriptClass;
 }
 
 export async function compileScriptRecord(
   script: ScriptRecord,
 ): Promise<new () => Behaviour> {
+  const cacheKey = `${script.id}\0${script.source}`;
+  const cached = compileCache.get(cacheKey);
+  if (cached) return cached;
+
   const compiled = await compileScript(script.source);
-  return instantiateScript(compiled);
+  const ScriptClass = instantiateScript(compiled);
+  compileCache.set(cacheKey, ScriptClass);
+  return ScriptClass;
 }
 
 function installEngineGlobals(): void {

@@ -119,6 +119,39 @@ export class ProjectService {
     }, 2000);
   }
 
+  async resetToDemo(projectId: string): Promise<{
+    projectId: string;
+    projectName: string;
+    scene: Scene;
+    scripts: ScriptRecord[];
+  }> {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    await db.assets.where('projectId').equals(projectId).delete();
+    useAssetStore.getState().clearAll();
+
+    const data = createDefaultProjectData();
+    await db.projects.put({
+      id: projectId,
+      name: data.name,
+      data,
+      updatedAt: Date.now(),
+    });
+
+    const scene = deserializeScene(data.scene);
+    hydrateSceneSprites(scene);
+
+    return {
+      projectId,
+      projectName: data.name,
+      scene,
+      scripts: data.scripts,
+    };
+  }
+
   async importAsset(projectId: string, file: File): Promise<AssetRecord> {
     if (!file.type.startsWith('image/')) {
       throw new Error('Only image files are supported.');

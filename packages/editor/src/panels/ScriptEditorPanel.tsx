@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import engineTypes from '../../../shared/src/engine.d.ts?raw';
 import { Panel } from '../components/Panel';
 import { useScriptStore } from '../stores/scriptStore';
@@ -8,15 +9,49 @@ import { useSceneStore } from '../stores/sceneStore';
 export function ScriptEditorPanel() {
   const scripts = useScriptStore((s) => s.scripts);
   const activeScriptId = useScriptStore((s) => s.activeScriptId);
-  const updateScriptSource = useScriptStore((s) => s.updateScriptSource);
+  const setDraft = useScriptStore((s) => s.setDraft);
+  const getEditorSource = useScriptStore((s) => s.getEditorSource);
+  const isDirty = useScriptStore((s) => s.isDirty);
+  const scriptErrors = useScriptStore((s) => s.scriptErrors);
   const openScript = useScriptStore((s) => s.openScript);
-  const createScript = useScriptStore((s) => s.createScript);
+  const openNewScriptDialog = useScriptStore((s) => s.openNewScriptDialog);
+  const saveScript = useScriptStore((s) => s.saveScript);
+  const isSavingScript = useScriptStore((s) => s.isSavingScript);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
 
   const activeScript = scripts.find((script) => script.id === activeScriptId) ?? null;
+  const activeSource = activeScriptId ? getEditorSource(activeScriptId) : '';
+  const activeDirty = activeScriptId ? isDirty(activeScriptId) : false;
+  const activeError = activeScriptId ? scriptErrors[activeScriptId] : null;
 
-  const handleMount: OnMount = (_editor, monaco) => {
+  const handleSave = async () => {
+    if (!activeScriptId || isSavingScript) return;
+    const saved = await saveScript(activeScriptId);
+    if (saved) markSceneChanged();
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+        if (!activeScriptId || isSavingScript) return;
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'INPUT') return;
+        event.preventDefault();
+        void (async () => {
+          const saved = await saveScript(activeScriptId);
+          if (saved) markSceneChanged();
+        })();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeScriptId, isSavingScript, saveScript, markSceneChanged]);
+
+  const handleMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
@@ -29,22 +64,11 @@ export function ScriptEditorPanel() {
       engineTypes,
       'file:///engine.d.ts',
     );
-  };
 
-  const scheduleSave = (source: string) => {
-    if (!activeScriptId) return;
-    updateScriptSource(activeScriptId, source);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      markSceneChanged();
-    }, 500);
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      void handleSave();
+    });
   };
-
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
 
   return (
     <Panel title="Script Editor">
@@ -52,26 +76,48 @@ export function ScriptEditorPanel() {
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#3c3c3c] p-1">
           <button
             type="button"
-            onClick={createScript}
+            onClick={openNewScriptDialog}
             className="shrink-0 rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
           >
             + New
           </button>
-          {scripts.map((script) => (
-            <button
-              key={script.id}
-              type="button"
-              onClick={() => openScript(script.id)}
-              className={`shrink-0 rounded px-2 py-0.5 text-xs ${
-                script.id === activeScriptId
-                  ? 'bg-[#094771] text-white'
-                  : 'text-[#cccccc] hover:bg-[#3c3c3c]'
-              }`}
-            >
-              {script.name}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!activeScript || isSavingScript}
+            className="shrink-0 rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isSavingScript ? 'Saving...' : 'Save'}
+          </button>
+          {scripts.map((script) => {
+            const dirty = isDirty(script.id);
+            const error = scriptErrors[script.id];
+            return (
+              <button
+                key={script.id}
+                type="button"
+                onClick={() => openScript(script.id)}
+                className={`shrink-0 rounded px-2 py-0.5 text-xs ${
+                  script.id === activeScriptId
+                    ? 'bg-[#094771] text-white'
+                    : error
+                      ? 'text-[#ef5350] hover:bg-[#3c3c3c]'
+                      : 'text-[#cccccc] hover:bg-[#3c3c3c]'
+                }`}
+                title={error ?? undefined}
+              >
+                {script.name}
+                {dirty ? '*' : ''}
+              </button>
+            );
+          })}
         </div>
+
+        {activeError && (
+          <p className="shrink-0 border-b border-[#3c3c3c] px-2 py-1 text-xs text-[#ef5350]">
+            {activeError}
+          </p>
+        )}
 
         <div className="min-h-0 flex-1">
           {activeScript ? (
@@ -79,8 +125,10 @@ export function ScriptEditorPanel() {
               key={activeScript.id}
               defaultLanguage="typescript"
               theme="vs-dark"
-              value={activeScript.source}
-              onChange={(value) => scheduleSave(value ?? '')}
+              value={activeSource}
+              onChange={(value) => {
+                if (activeScriptId) setDraft(activeScriptId, value ?? '');
+              }}
               onMount={handleMount}
               options={{
                 minimap: { enabled: false },
@@ -96,6 +144,11 @@ export function ScriptEditorPanel() {
             </p>
           )}
         </div>
+        {activeDirty && (
+          <p className="shrink-0 border-t border-[#3c3c3c] px-2 py-1 text-xs text-[#858585]">
+            Unsaved changes — press Save or Ctrl/Cmd+S to compile.
+          </p>
+        )}
       </div>
     </Panel>
   );

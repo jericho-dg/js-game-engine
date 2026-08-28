@@ -20,7 +20,7 @@ export function ProjectPanel() {
   const selectObject = useSceneStore((s) => s.selectObject);
   const scripts = useScriptStore((s) => s.scripts);
   const openScript = useScriptStore((s) => s.openScript);
-  const createScript = useScriptStore((s) => s.createScript);
+  const openNewScriptDialog = useScriptStore((s) => s.openNewScriptDialog);
   const deleteScript = useScriptStore((s) => s.deleteScript);
 
   const importFiles = async (files: FileList | File[]) => {
@@ -141,7 +141,7 @@ export function ProjectPanel() {
             <h3 className="text-xs font-medium text-[#cccccc]">Scripts</h3>
             <button
               type="button"
-              onClick={createScript}
+              onClick={openNewScriptDialog}
               className="rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
             >
               + New

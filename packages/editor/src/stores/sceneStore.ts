@@ -13,7 +13,7 @@ import {
 } from '@js-game-engine/engine';
 import { projectService, hydrateSceneSprites } from '../services/ProjectService';
 import { attachScriptsToScene, detachScriptsFromScene } from '../scripting/ScriptRuntime';
-import { initScriptCompiler } from '../scripting/ScriptCompiler';
+import { getPlayBlockers } from '../scripting/validateScripts';
 import { useAssetStore } from './assetStore';
 import { useConsoleStore } from './consoleStore';
 import { useScriptStore } from './scriptStore';
@@ -29,12 +29,11 @@ interface SceneState {
   sceneRevision: number;
   editorMode: EditorMode;
   isLoaded: boolean;
-  isPlayLoading: boolean;
   selectObject: (id: string | null) => void;
   markSceneChanged: () => void;
   setScene: (scene: Scene) => void;
   initProject: (projectId: string, projectName: string, scene: Scene) => void;
-  enterPlayMode: () => Promise<void>;
+  enterPlayMode: () => void;
   exitPlayMode: () => void;
   getActiveScene: () => Scene | null;
   deleteSelected: () => void;
@@ -42,6 +41,7 @@ interface SceneState {
   assignSpriteAsset: (objectId: string, assetId: string | null) => void;
   assignScriptAsset: (objectId: string, scriptId: string | null) => void;
   addScriptComponent: (objectId: string) => void;
+  resetProject: () => Promise<void>;
 }
 
 export const useSceneStore = create<SceneState>((set, get) => ({
@@ -53,7 +53,6 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   sceneRevision: 0,
   editorMode: 'edit',
   isLoaded: false,
-  isPlayLoading: false,
 
   selectObject: (id) => set({ selectedId: id }),
 
@@ -84,42 +83,72 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     return editorMode === 'play' ? playScene : scene;
   },
 
-  enterPlayMode: async () => {
+  enterPlayMode: () => {
     const { scene } = get();
-    if (!scene || get().isPlayLoading) return;
+    if (!scene) return;
 
-    set({ isPlayLoading: true });
-    useConsoleStore.getState().clear();
+    const scriptState = useScriptStore.getState();
+    const scripts = scriptState.scripts;
 
-    try {
-      await initScriptCompiler();
-      const snapshot = serializeScene(scene);
-      const playScene = deserializeScene(snapshot);
-      hydrateSceneSprites(playScene);
+    if (!scriptState.scriptsCompiled) {
+      useConsoleStore.getState().clear();
+      useConsoleStore.getState().log(
+        'error',
+        'Scripts are still compiling. Try play again in a moment.',
+      );
+      return;
+    }
 
-      Debug.setLogCallback((level, message) => {
-        useConsoleStore.getState().log(level, message);
-      });
-      Input._clear();
+    const blockers = getPlayBlockers(scene, scripts, {
+      hasUnsavedScripts: scriptState.hasUnsavedScripts(),
+      scriptErrors: scriptState.scriptErrors,
+      isScriptPlayReady: (script) => scriptState.isScriptPlayReady(script),
+    });
 
-      const scripts = useScriptStore.getState().scripts;
-      const { errors } = await attachScriptsToScene(playScene, scripts);
+    if (blockers.length > 0) {
+      useConsoleStore.getState().clear();
+      for (const message of blockers) {
+        useConsoleStore.getState().log('error', message);
+      }
+      useConsoleStore.getState().log(
+        'error',
+        'Play mode blocked — save and fix scripts before playing.',
+      );
+      set({ playScene: null, editorMode: 'edit' });
+      return;
+    }
+
+    const snapshot = serializeScene(scene);
+    const playScene = deserializeScene(snapshot);
+    hydrateSceneSprites(playScene);
+
+    Debug.setLogCallback((level, message) => {
+      useConsoleStore.getState().log(level, message);
+    });
+    Input._clear();
+
+    const { errors } = attachScriptsToScene(playScene, scripts);
+    if (errors.length > 0) {
+      useConsoleStore.getState().clear();
       for (const error of errors) {
         useConsoleStore.getState().log(
           'error',
           `${error.objectName} / ${error.scriptName}: ${error.message}`,
         );
       }
-
-      set({
-        playScene,
-        editorMode: 'play',
-        selectedId: null,
-        sceneRevision: get().sceneRevision + 1,
-      });
-    } finally {
-      set({ isPlayLoading: false });
+      detachScriptsFromScene(playScene);
+      Debug.setLogCallback(null);
+      Input._clear();
+      set({ playScene: null, editorMode: 'edit' });
+      return;
     }
+
+    set({
+      playScene,
+      editorMode: 'play',
+      selectedId: null,
+      sceneRevision: get().sceneRevision + 1,
+    });
   },
 
   exitPlayMode: () => {
@@ -199,6 +228,34 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     if (!obj || obj.getComponent(ScriptComponent)) return;
     obj.addComponent(new ScriptComponent());
     get().markSceneChanged();
+  },
+
+  resetProject: async () => {
+    const { projectId, editorMode } = get();
+    if (!projectId) return;
+
+    if (editorMode === 'play') {
+      get().exitPlayMode();
+    }
+
+    const result = await projectService.resetToDemo(projectId);
+    useScriptStore.getState().setScripts(result.scripts);
+    await useScriptStore.getState().compileAllSavedScripts();
+    useConsoleStore.getState().clear();
+
+    set({
+      scene: result.scene,
+      playScene: null,
+      projectName: result.projectName,
+      selectedId: null,
+      editorMode: 'edit',
+      sceneRevision: get().sceneRevision + 1,
+    });
+
+    const firstScript = result.scripts[0];
+    if (firstScript) {
+      useScriptStore.getState().openScript(firstScript.id);
+    }
   },
 }));
 

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { projectService } from './services/ProjectService';
+import { initScriptCompiler } from './scripting/ScriptCompiler';
 import { useSceneStore } from './stores/sceneStore';
 import { useScriptStore } from './stores/scriptStore';
 
@@ -22,6 +23,10 @@ async function bootstrap() {
   if (scripts.length > 0) {
     useScriptStore.getState().openScript(scripts[0].id);
   }
+
+  void initScriptCompiler().then(() =>
+    useScriptStore.getState().compileAllSavedScripts(),
+  );
 }
 
 void bootstrap();

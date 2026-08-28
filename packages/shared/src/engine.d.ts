@@ -23,6 +23,7 @@ declare class Vector2 {
 declare class Behaviour {
   gameObject: GameObject;
   transform: Transform;
+  bind(gameObject: GameObject): void;
   onAwake(): void;
   onStart(): void;
   onUpdate(deltaTime: number): void;
