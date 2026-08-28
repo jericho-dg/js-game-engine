@@ -20,15 +20,41 @@ declare class Vector2 {
   set(x: number, y: number): this;
 }
 
+declare class BoxCollider2D {
+  readonly gameObject: GameObject;
+  width: number;
+  height: number;
+  offset: Vector2;
+  isTrigger: boolean;
+}
+
+declare class Rigidbody2D {
+  readonly gameObject: GameObject;
+  velocity: Vector2;
+  gravityScale: number;
+  isKinematic: boolean;
+}
+
+declare class Collision2D {
+  readonly gameObject: GameObject;
+  readonly collider: BoxCollider2D;
+}
+
 declare class Behaviour {
   gameObject: GameObject;
   transform: Transform;
   bind(gameObject: GameObject): void;
+  getRigidbody2D(): Rigidbody2D | null;
+  getBoxCollider2D(): BoxCollider2D | null;
   onAwake(): void;
   onStart(): void;
   onUpdate(deltaTime: number): void;
   onFixedUpdate(fixedDeltaTime: number): void;
   onDestroy(): void;
+  onCollisionEnter(collision: Collision2D): void;
+  onCollisionExit(collision: Collision2D): void;
+  onTriggerEnter(collision: Collision2D): void;
+  onTriggerExit(collision: Collision2D): void;
 }
 
 declare class Input {
@@ -38,6 +64,7 @@ declare class Input {
 
 declare class Time {
   static deltaTime: number;
+  static fixedDeltaTime: number;
 }
 
 declare class Debug {
@@ -47,9 +74,31 @@ declare class Debug {
 }
 
 declare module '@js-game-engine/script-api' {
-  export { Behaviour, GameObject, Transform, Vector2, Input, Time, Debug };
+  export {
+    Behaviour,
+    GameObject,
+    Transform,
+    Vector2,
+    BoxCollider2D,
+    Rigidbody2D,
+    Collision2D,
+    Input,
+    Time,
+    Debug,
+  };
 }
 
 declare module 'engine' {
-  export { Behaviour, GameObject, Transform, Vector2, Input, Time, Debug };
+  export {
+    Behaviour,
+    GameObject,
+    Transform,
+    Vector2,
+    BoxCollider2D,
+    Rigidbody2D,
+    Collision2D,
+    Input,
+    Time,
+    Debug,
+  };
 }

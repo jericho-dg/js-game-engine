@@ -10,6 +10,8 @@ import {
   Scene,
   ScriptComponent,
   SpriteRenderer,
+  BoxCollider2D,
+  Rigidbody2D,
   deserializeScene,
   serializeScene,
 } from '@js-game-engine/engine';
@@ -17,24 +19,30 @@ import { db } from './db';
 import { useAssetStore } from '../stores/assetStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
-import { createDefaultSpinScript } from '../stores/scriptStore';
+import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 
 function createDefaultProjectData(): ProjectData {
-  const spinScript = createDefaultSpinScript();
+  const playerScript = createDefaultPlayerMoveScript();
   const scene = new Scene('Main');
 
   const camera = scene.createGameObject('Main Camera');
   camera.addComponent(new Camera2D());
 
   const player = scene.createGameObject('Player');
+  player.transform.localPosition.set(0, -80);
   const playerSprite = player.addComponent(new SpriteRenderer());
   playerSprite.color = Color.fromHex('#4fc3f7');
   playerSprite.width = 48;
   playerSprite.height = 48;
-  const playerScript = player.addComponent(new ScriptComponent());
-  playerScript.scriptAssetId = spinScript.id;
+  const playerCollider = player.addComponent(new BoxCollider2D());
+  playerCollider.width = 48;
+  playerCollider.height = 48;
+  const playerBody = player.addComponent(new Rigidbody2D());
+  playerBody.gravityScale = 1;
+  const playerScriptComponent = player.addComponent(new ScriptComponent());
+  playerScriptComponent.scriptAssetId = playerScript.id;
 
   const ground = scene.createGameObject('Ground');
   ground.transform.localPosition.set(0, -120);
@@ -43,19 +51,26 @@ function createDefaultProjectData(): ProjectData {
   groundSprite.width = 320;
   groundSprite.height = 32;
   groundSprite.sortingOrder = -1;
+  const groundCollider = ground.addComponent(new BoxCollider2D());
+  groundCollider.width = 320;
+  groundCollider.height = 32;
 
   const marker = scene.createGameObject('Marker');
-  marker.transform.localPosition.set(100, 60);
+  marker.transform.localPosition.set(100, -40);
   const markerSprite = marker.addComponent(new SpriteRenderer());
   markerSprite.color = Color.fromHex('#ffb74d');
   markerSprite.width = 24;
   markerSprite.height = 24;
+  const markerCollider = marker.addComponent(new BoxCollider2D());
+  markerCollider.width = 24;
+  markerCollider.height = 24;
+  markerCollider.isTrigger = true;
 
   return {
     version: PROJECT_VERSION,
     name: 'Untitled Project',
     scene: serializeScene(scene),
-    scripts: [spinScript],
+    scripts: [playerScript],
   };
 }
 

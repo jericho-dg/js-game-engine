@@ -8,6 +8,8 @@ import { ScriptComponent } from '../components/ScriptComponent';
 import { Camera2D } from '../components/Camera2D';
 import { Rotator } from '../components/Rotator';
 import { SpriteRenderer } from '../components/SpriteRenderer';
+import { BoxCollider2D } from '../components/BoxCollider2D';
+import { Rigidbody2D } from '../components/Rigidbody2D';
 import { GameObject } from '../core/GameObject';
 import { Scene } from '../core/Scene';
 
@@ -60,6 +62,27 @@ function serializeGameObject(obj: GameObject): SerializedGameObject {
       type: 'ScriptComponent',
       enabled: component.enabled,
       scriptAssetId: component.scriptAssetId,
+    });
+  }
+
+  for (const component of obj.getComponents(BoxCollider2D)) {
+    components.push({
+      type: 'BoxCollider2D',
+      enabled: component.enabled,
+      width: component.width,
+      height: component.height,
+      offset: { x: component.offset.x, y: component.offset.y },
+      isTrigger: component.isTrigger,
+    });
+  }
+
+  for (const component of obj.getComponents(Rigidbody2D)) {
+    components.push({
+      type: 'Rigidbody2D',
+      enabled: component.enabled,
+      velocity: { x: component.velocity.x, y: component.velocity.y },
+      gravityScale: component.gravityScale,
+      isKinematic: component.isKinematic,
     });
   }
 
@@ -118,6 +141,19 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
       const script = obj.addComponent(new ScriptComponent());
       script.enabled = data.enabled;
       script.scriptAssetId = data.scriptAssetId;
+    } else if (data.type === 'BoxCollider2D') {
+      const collider = obj.addComponent(new BoxCollider2D());
+      collider.enabled = data.enabled;
+      collider.width = data.width;
+      collider.height = data.height;
+      collider.offset.set(data.offset.x, data.offset.y);
+      collider.isTrigger = data.isTrigger;
+    } else if (data.type === 'Rigidbody2D') {
+      const body = obj.addComponent(new Rigidbody2D());
+      body.enabled = data.enabled;
+      body.velocity.set(data.velocity.x, data.velocity.y);
+      body.gravityScale = data.gravityScale;
+      body.isKinematic = data.isKinematic;
     }
   }
 }

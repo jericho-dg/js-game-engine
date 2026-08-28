@@ -28,6 +28,7 @@ export class Input {
 
 export class Time {
   static deltaTime = 0;
+  static fixedDeltaTime = 1 / 60;
 }
 
 export type LogCallback = (level: 'log' | 'warn' | 'error', message: string) => void;

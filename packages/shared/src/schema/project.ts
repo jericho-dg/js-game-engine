@@ -41,6 +41,21 @@ export type SerializedComponent =
       type: 'ScriptComponent';
       enabled: boolean;
       scriptAssetId: string | null;
+    }
+  | {
+      type: 'BoxCollider2D';
+      enabled: boolean;
+      width: number;
+      height: number;
+      offset: SerializedVector2;
+      isTrigger: boolean;
+    }
+  | {
+      type: 'Rigidbody2D';
+      enabled: boolean;
+      velocity: SerializedVector2;
+      gravityScale: number;
+      isKinematic: boolean;
     };
 
 export interface ScriptRecord {

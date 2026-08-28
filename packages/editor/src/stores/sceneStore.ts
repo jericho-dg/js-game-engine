@@ -8,6 +8,8 @@ import {
   Scene,
   ScriptComponent,
   SpriteRenderer,
+  BoxCollider2D,
+  Rigidbody2D,
   deserializeScene,
   serializeScene,
 } from '@js-game-engine/engine';
@@ -41,6 +43,8 @@ interface SceneState {
   assignSpriteAsset: (objectId: string, assetId: string | null) => void;
   assignScriptAsset: (objectId: string, scriptId: string | null) => void;
   addScriptComponent: (objectId: string) => void;
+  addBoxCollider2D: (objectId: string) => void;
+  addRigidbody2D: (objectId: string) => void;
   resetProject: () => Promise<void>;
 }
 
@@ -227,6 +231,29 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const obj = findObjectById(scene, objectId);
     if (!obj || obj.getComponent(ScriptComponent)) return;
     obj.addComponent(new ScriptComponent());
+    get().markSceneChanged();
+  },
+
+  addBoxCollider2D: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj || obj.getComponent(BoxCollider2D)) return;
+    const collider = obj.addComponent(new BoxCollider2D());
+    const sprite = obj.getComponent(SpriteRenderer);
+    if (sprite) {
+      collider.width = sprite.width;
+      collider.height = sprite.height;
+    }
+    get().markSceneChanged();
+  },
+
+  addRigidbody2D: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj || obj.getComponent(Rigidbody2D)) return;
+    obj.addComponent(new Rigidbody2D());
     get().markSceneChanged();
   },
 

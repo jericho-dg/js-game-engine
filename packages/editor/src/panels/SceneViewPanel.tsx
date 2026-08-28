@@ -6,7 +6,7 @@ import {
 } from '@js-game-engine/engine';
 import { Vector2 } from '@js-game-engine/shared';
 import { Panel } from '../components/Panel';
-import { drawSelectionGizmo } from '../gizmos/gizmoRenderer';
+import { drawSelectionGizmo, drawColliderGizmos } from '../gizmos/gizmoRenderer';
 import { hitTestScene } from '../gizmos/hitTest';
 import { getSelectedObject, findObjectById, useSceneStore } from '../stores/sceneStore';
 
@@ -40,6 +40,19 @@ export function SceneViewPanel() {
 
     const renderEditFrame = () => {
       runtime.renderOnce();
+      const activeScene = getActiveScene();
+      if (!activeScene) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const { width, height } = container.getBoundingClientRect();
+        drawColliderGizmos(
+          ctx,
+          activeScene,
+          getSceneCamera(activeScene),
+          width,
+          height,
+        );
+      }
       const selected = getSelectedObject();
       if (selected && editorMode === 'edit') {
         const ctx = canvas.getContext('2d');
@@ -48,7 +61,7 @@ export function SceneViewPanel() {
           drawSelectionGizmo(
             ctx,
             selected,
-            getSceneCamera(scene),
+            getSceneCamera(activeScene),
             width,
             height,
           );

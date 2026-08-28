@@ -1,13 +1,16 @@
 import { GameObject } from './GameObject';
+import { PhysicsWorld } from '../physics/PhysicsWorld';
 
 export class Scene {
   readonly name: string;
   readonly rootObjects: GameObject[] = [];
+  readonly physicsWorld: PhysicsWorld;
   isRunning = false;
   private destroyQueue: GameObject[] = [];
 
   constructor(name = 'Scene') {
     this.name = name;
+    this.physicsWorld = new PhysicsWorld(this);
   }
 
   createGameObject(name: string, parent?: GameObject | null): GameObject {
@@ -57,6 +60,7 @@ export class Scene {
 
   start(): void {
     this.isRunning = true;
+    this.physicsWorld.reset();
     for (const root of this.rootObjects) {
       root.internalAwake();
       root.internalStart();
@@ -65,6 +69,7 @@ export class Scene {
 
   stop(): void {
     this.isRunning = false;
+    this.physicsWorld.reset();
   }
 
   update(deltaTime: number): void {
@@ -78,6 +83,7 @@ export class Scene {
     for (const root of this.rootObjects) {
       root.internalFixedUpdate(fixedDeltaTime);
     }
+    this.physicsWorld.step(fixedDeltaTime);
     this.processDestroyQueue();
   }
 

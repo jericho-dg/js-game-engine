@@ -15,8 +15,12 @@ export { SpriteRenderer } from './components/SpriteRenderer';
 export type { SpriteSource } from './components/SpriteRenderer';
 export { Rotator } from './components/Rotator';
 export { ScriptComponent } from './components/ScriptComponent';
+export { BoxCollider2D } from './components/BoxCollider2D';
+export { Rigidbody2D } from './components/Rigidbody2D';
 
 export { Behaviour } from './scripting/Behaviour';
+export { Collision2D } from './physics/Collision2D';
+export { PhysicsWorld } from './physics/PhysicsWorld';
 export { Input, Time, Debug } from './input/Input';
 export type { LogCallback } from './input/Input';
 

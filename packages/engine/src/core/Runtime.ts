@@ -32,7 +32,10 @@ export class Runtime {
         Time.deltaTime = dt;
         this.scene.update(dt);
       },
-      (fixedDt) => this.scene.fixedUpdate(fixedDt),
+      (fixedDt) => {
+        Time.fixedDeltaTime = fixedDt;
+        this.scene.fixedUpdate(fixedDt);
+      },
       () => this.renderFrame(),
     );
   }

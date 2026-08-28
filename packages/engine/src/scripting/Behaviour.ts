@@ -1,3 +1,6 @@
+import { BoxCollider2D } from '../components/BoxCollider2D';
+import { Rigidbody2D } from '../components/Rigidbody2D';
+import type { Collision2D } from '../physics/Collision2D';
 import type { GameObject } from '../core/GameObject';
 import type { Transform } from '../core/Transform';
 
@@ -11,9 +14,22 @@ export class Behaviour {
     this.transform = gameObject.transform;
   }
 
+  getRigidbody2D(): Rigidbody2D | null {
+    return this.gameObject.getComponent(Rigidbody2D);
+  }
+
+  getBoxCollider2D(): BoxCollider2D | null {
+    return this.gameObject.getComponent(BoxCollider2D);
+  }
+
   onAwake(): void {}
   onStart(): void {}
   onUpdate(_deltaTime: number): void {}
   onFixedUpdate(_fixedDeltaTime: number): void {}
   onDestroy(): void {}
+
+  onCollisionEnter(_collision: Collision2D): void {}
+  onCollisionExit(_collision: Collision2D): void {}
+  onTriggerEnter(_collision: Collision2D): void {}
+  onTriggerExit(_collision: Collision2D): void {}
 }

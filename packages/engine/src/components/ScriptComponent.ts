@@ -2,6 +2,8 @@ import { Component } from '../core/Component';
 import { Debug } from '../input/Input';
 import type { Behaviour } from '../scripting/Behaviour';
 
+import type { Collision2D } from '../physics/Collision2D';
+
 function runBehaviourMethod(
   component: ScriptComponent,
   scriptName: string,
@@ -66,6 +68,29 @@ export class ScriptComponent extends Component {
     if (!this.behaviour) return;
     runBehaviourMethod(this, this.runtimeScriptName, 'onFixedUpdate', () => {
       this.behaviour?.onFixedUpdate(fixedDeltaTime);
+    });
+  }
+
+  dispatchPhysicsEvent(
+    method: 'onCollisionEnter' | 'onCollisionExit' | 'onTriggerEnter' | 'onTriggerExit',
+    collision: Collision2D,
+  ): void {
+    if (!this.behaviour) return;
+    runBehaviourMethod(this, this.runtimeScriptName, method, () => {
+      switch (method) {
+        case 'onCollisionEnter':
+          this.behaviour?.onCollisionEnter(collision);
+          break;
+        case 'onCollisionExit':
+          this.behaviour?.onCollisionExit(collision);
+          break;
+        case 'onTriggerEnter':
+          this.behaviour?.onTriggerEnter(collision);
+          break;
+        case 'onTriggerExit':
+          this.behaviour?.onTriggerExit(collision);
+          break;
+      }
     });
   }
 

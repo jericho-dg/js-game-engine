@@ -173,17 +173,41 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
   getScript: (id) => get().scripts.find((script) => script.id === id),
 }));
 
-export function createDefaultSpinScript(): ScriptRecord {
+export function createDefaultPlayerMoveScript(): ScriptRecord {
   return {
-    id: 'script-spin-demo',
-    name: scriptFileName('Spin'),
-    source: `export default class Spin extends Behaviour {
-  speed = 1.5;
+    id: 'script-player-move-demo',
+    name: scriptFileName('PlayerMove'),
+    source: `export default class PlayerMove extends Behaviour {
+  moveSpeed = 200;
+  jumpSpeed = 350;
+  body = null;
 
-  onUpdate(deltaTime: number) {
-    this.transform.localRotation += this.speed * deltaTime;
+  onStart() {
+    this.body = this.getRigidbody2D();
+  }
+
+  onFixedUpdate() {
+    if (!this.body) return;
+    this.body.velocity.x = Input.getAxis('Horizontal') * this.moveSpeed;
+
+    if (Input.getKey(' ') && Math.abs(this.body.velocity.y) < 1) {
+      this.body.velocity.y = this.jumpSpeed;
+    }
+  }
+
+  onCollisionEnter(collision) {
+    Debug.log('Collided with', collision.gameObject.name);
+  }
+
+  onTriggerEnter(collision) {
+    Debug.log('Trigger entered', collision.gameObject.name);
   }
 }
 `,
   };
+}
+
+/** @deprecated Use createDefaultPlayerMoveScript */
+export function createDefaultSpinScript(): ScriptRecord {
+  return createDefaultPlayerMoveScript();
 }

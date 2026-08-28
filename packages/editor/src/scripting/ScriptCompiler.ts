@@ -35,12 +35,26 @@ export class Behaviour {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
   }
+  getRigidbody2D() { return null; }
+  getBoxCollider2D() { return null; }
   onAwake() {}
   onStart() {}
   onUpdate(_dt) {}
   onFixedUpdate(_dt) {}
   onDestroy() {}
+  onCollisionEnter(_collision) {}
+  onCollisionExit(_collision) {}
+  onTriggerEnter(_collision) {}
+  onTriggerExit(_collision) {}
 }
+export class Collision2D {
+  constructor(gameObject, collider) {
+    this.gameObject = gameObject;
+    this.collider = collider;
+  }
+}
+export class BoxCollider2D {}
+export class Rigidbody2D {}
 export const Input = globalThis.__JGE__.Input;
 export const Time = globalThis.__JGE__.Time;
 export const Debug = globalThis.__JGE__.Debug;

@@ -4,6 +4,8 @@ import {
   Rotator,
   ScriptComponent,
   SpriteRenderer,
+  BoxCollider2D,
+  Rigidbody2D,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
 import { useAssetStore } from '../stores/assetStore';
@@ -17,6 +19,8 @@ export function InspectorPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
   const editorMode = useSceneStore((s) => s.editorMode);
   const addScriptComponent = useSceneStore((s) => s.addScriptComponent);
+  const addBoxCollider2D = useSceneStore((s) => s.addBoxCollider2D);
+  const addRigidbody2D = useSceneStore((s) => s.addRigidbody2D);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
 
@@ -160,6 +164,107 @@ export function InspectorPanel() {
               className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
             >
               Add Script Component
+            </button>
+          )
+        )}
+
+        {selected.getComponent(BoxCollider2D) ? (
+          <ComponentSection title="Box Collider 2D">
+            <NumberField
+              key={`${selected.id}-col-w`}
+              label="Width"
+              value={selected.getComponent(BoxCollider2D)!.width}
+              onChange={(v) => {
+                selected.getComponent(BoxCollider2D)!.width = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-col-h`}
+              label="Height"
+              value={selected.getComponent(BoxCollider2D)!.height}
+              onChange={(v) => {
+                selected.getComponent(BoxCollider2D)!.height = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-col-ox`}
+              label="Offset X"
+              value={selected.getComponent(BoxCollider2D)!.offset.x}
+              onChange={(v) => {
+                selected.getComponent(BoxCollider2D)!.offset.x = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-col-oy`}
+              label="Offset Y"
+              value={selected.getComponent(BoxCollider2D)!.offset.y}
+              onChange={(v) => {
+                selected.getComponent(BoxCollider2D)!.offset.y = v;
+              }}
+            />
+            <BoolField
+              label="Is Trigger"
+              value={selected.getComponent(BoxCollider2D)!.isTrigger}
+              onChange={(v) => {
+                selected.getComponent(BoxCollider2D)!.isTrigger = v;
+              }}
+            />
+          </ComponentSection>
+        ) : (
+          editorMode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => addBoxCollider2D(selected.id)}
+              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              Add Box Collider 2D
+            </button>
+          )
+        )}
+
+        {selected.getComponent(Rigidbody2D) ? (
+          <ComponentSection title="Rigidbody 2D">
+            <NumberField
+              key={`${selected.id}-rb-vx`}
+              label="Velocity X"
+              value={selected.getComponent(Rigidbody2D)!.velocity.x}
+              onChange={(v) => {
+                selected.getComponent(Rigidbody2D)!.velocity.x = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-rb-vy`}
+              label="Velocity Y"
+              value={selected.getComponent(Rigidbody2D)!.velocity.y}
+              onChange={(v) => {
+                selected.getComponent(Rigidbody2D)!.velocity.y = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-rb-grav`}
+              label="Gravity Scale"
+              value={selected.getComponent(Rigidbody2D)!.gravityScale}
+              onChange={(v) => {
+                selected.getComponent(Rigidbody2D)!.gravityScale = v;
+              }}
+              step={0.1}
+            />
+            <BoolField
+              label="Is Kinematic"
+              value={selected.getComponent(Rigidbody2D)!.isKinematic}
+              onChange={(v) => {
+                selected.getComponent(Rigidbody2D)!.isKinematic = v;
+              }}
+            />
+          </ComponentSection>
+        ) : (
+          editorMode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => addRigidbody2D(selected.id)}
+              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              Add Rigidbody 2D
             </button>
           )
         )}
@@ -368,4 +473,29 @@ function NumberField({
 function formatNumber(value: number): string {
   if (Number.isInteger(value)) return String(value);
   return String(Number(value.toFixed(4)));
+}
+
+function BoolField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 text-xs text-[#858585]">
+      {label}
+      <input
+        type="checkbox"
+        checked={value}
+        onChange={(e) => {
+          onChange(e.target.checked);
+          useSceneStore.getState().markSceneChanged();
+        }}
+        className="accent-[#007acc]"
+      />
+    </label>
+  );
 }
