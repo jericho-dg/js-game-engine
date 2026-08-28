@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Panel,
   PanelGroup,
@@ -10,6 +11,7 @@ import { InspectorPanel } from './panels/InspectorPanel';
 import { ProjectPanel } from './panels/ProjectPanel';
 import { ScriptEditorPanel } from './panels/ScriptEditorPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { useSceneStore } from './stores/sceneStore';
 
 function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
   return (
@@ -24,6 +26,34 @@ function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
 }
 
 export default function App() {
+  const isLoaded = useSceneStore((s) => s.isLoaded);
+  const deleteSelected = useSceneStore((s) => s.deleteSelected);
+  const editorMode = useSceneStore((s) => s.editorMode);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (editorMode !== 'edit') return;
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        deleteSelected();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteSelected, editorMode]);
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-[#858585]">
+        Loading project...
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <Toolbar />

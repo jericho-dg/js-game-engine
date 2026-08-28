@@ -1,67 +1,148 @@
 import { useEffect, useRef } from 'react';
+import {
+  Runtime,
+  getSceneCamera,
+  screenToWorld,
+} from '@js-game-engine/engine';
+import { Vector2 } from '@js-game-engine/shared';
 import { Panel } from '../components/Panel';
+import { drawSelectionGizmo } from '../gizmos/gizmoRenderer';
+import { hitTestScene } from '../gizmos/hitTest';
+import { getSelectedObject, findObjectById, useSceneStore } from '../stores/sceneStore';
 
 export function SceneViewPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scene = useSceneStore((s) => s.scene);
+  const sceneRevision = useSceneStore((s) => s.sceneRevision);
+  const editorMode = useSceneStore((s) => s.editorMode);
+  const selectedId = useSceneStore((s) => s.selectedId);
+  const selectObject = useSceneStore((s) => s.selectObject);
+  const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!canvas || !container || !scene) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const runtime = new Runtime({ scene, canvas, showGrid: true });
+    const dragState = {
+      active: false,
+      objectId: null as string | null,
+      offset: Vector2.zero(),
+    };
 
     const resize = () => {
       const { width, height } = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      runtime.resize(width, height);
+    };
 
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.strokeStyle = '#2a2a3e';
-      ctx.lineWidth = 1;
-      const gridSize = 32;
-      for (let x = 0; x <= width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
+    const renderEditFrame = () => {
+      runtime.renderOnce();
+      const selected = getSelectedObject();
+      if (selected && editorMode === 'edit') {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const { width, height } = container.getBoundingClientRect();
+          drawSelectionGizmo(
+            ctx,
+            selected,
+            getSceneCamera(scene),
+            width,
+            height,
+          );
+        }
       }
-      for (let y = 0; y <= height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = '#4a4a6a';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(width / 2, 0);
-      ctx.lineTo(width / 2, height);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, height / 2);
-      ctx.lineTo(width, height / 2);
-      ctx.stroke();
     };
 
     resize();
-    const observer = new ResizeObserver(resize);
+
+    if (editorMode === 'play') {
+      runtime.start();
+    } else {
+      renderEditFrame();
+    }
+
+    const observer = new ResizeObserver(() => {
+      resize();
+      if (editorMode === 'edit') renderEditFrame();
+    });
     observer.observe(container);
-    return () => observer.disconnect();
-  }, []);
+
+    const getWorldPoint = (clientX: number, clientY: number) => {
+      const rect = container.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      return screenToWorld(x, y, rect.width, rect.height, getSceneCamera(scene));
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (editorMode !== 'edit') return;
+      const world = getWorldPoint(event.clientX, event.clientY);
+      const hit = hitTestScene(scene, world);
+      if (hit) {
+        selectObject(hit.id);
+        dragState.active = true;
+        dragState.objectId = hit.id;
+        const pos = hit.transform.worldPosition;
+        dragState.offset = new Vector2(world.x - pos.x, world.y - pos.y);
+        container.setPointerCapture(event.pointerId);
+      } else {
+        selectObject(null);
+        renderEditFrame();
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragState.active || !dragState.objectId || editorMode !== 'edit') return;
+      const obj = findObjectById(scene, dragState.objectId);
+      if (!obj) return;
+
+      const world = getWorldPoint(event.clientX, event.clientY);
+      obj.transform.position = new Vector2(
+        world.x - dragState.offset.x,
+        world.y - dragState.offset.y,
+      );
+      renderEditFrame();
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (dragState.active) {
+        dragState.active = false;
+        dragState.objectId = null;
+        markSceneChanged();
+        container.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointermove', onPointerMove);
+    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointerleave', onPointerUp);
+
+    return () => {
+      observer.disconnect();
+      runtime.stop();
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointermove', onPointerMove);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointerleave', onPointerUp);
+    };
+  }, [
+    scene,
+    sceneRevision,
+    editorMode,
+    selectedId,
+    selectObject,
+    markSceneChanged,
+  ]);
 
   return (
     <Panel title="Scene">
-      <div ref={containerRef} className="relative h-full w-full bg-[#1a1a2e]">
+      <div
+        ref={containerRef}
+        className="relative h-full w-full cursor-crosshair bg-[#1a1a2e]"
+      >
         <canvas ref={canvasRef} className="absolute inset-0 block" />
       </div>
     </Panel>
