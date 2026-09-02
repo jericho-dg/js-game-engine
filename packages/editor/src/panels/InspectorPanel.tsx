@@ -14,6 +14,7 @@ import { AddComponentMenu } from '../components/AddComponentMenu';
 import { useAssetStore } from '../stores/assetStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { getSelectedObject, useSceneStore } from '../stores/sceneStore';
+import { useHistoryStore } from '../stores/historyStore';
 
 const RAD_TO_DEG = 180 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180;
@@ -382,6 +383,10 @@ function TextField({
   }, [value]);
 
   const commit = () => {
+    if (text === value) {
+      useHistoryStore.getState().cancelPendingChange();
+      return;
+    }
     onChange(text);
     useSceneStore.getState().markSceneChanged();
   };
@@ -392,7 +397,10 @@ function TextField({
       <input
         type="text"
         value={text}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          useSceneStore.getState().beginSceneChange();
+        }}
         onBlur={() => {
           setFocused(false);
           commit();
@@ -542,6 +550,11 @@ function NumberField({
     const parsed = Number(text);
     if (text.trim() === '' || Number.isNaN(parsed)) {
       setText(formatNumber(value));
+      useHistoryStore.getState().cancelPendingChange();
+      return;
+    }
+    if (parsed === value) {
+      useHistoryStore.getState().cancelPendingChange();
       return;
     }
     onChange(parsed);
@@ -556,7 +569,10 @@ function NumberField({
         type="number"
         step={step}
         value={text}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          useSceneStore.getState().beginSceneChange();
+        }}
         onBlur={() => {
           setFocused(false);
           commit();
@@ -595,6 +611,7 @@ function BoolField({
         type="checkbox"
         checked={value}
         onChange={(e) => {
+          useSceneStore.getState().beginSceneChange();
           onChange(e.target.checked);
           useSceneStore.getState().markSceneChanged();
         }}

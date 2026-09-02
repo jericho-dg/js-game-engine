@@ -20,6 +20,7 @@ export function SceneViewPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
   const selectObject = useSceneStore((s) => s.selectObject);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
+  const beginSceneChange = useSceneStore((s) => s.beginSceneChange);
   const paintTileAtWorld = useSceneStore((s) => s.paintTileAtWorld);
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function SceneViewPanel() {
 
       const selected = getSelectedObject();
       if (selected?.getComponent(TilemapRenderer)) {
+        beginSceneChange();
         if (tryPaintSelectedTilemap(world, erase)) {
           paintState.active = true;
           paintState.objectId = selected.id;
@@ -136,6 +138,7 @@ export function SceneViewPanel() {
       const hit = hitTestScene(activeScene, world);
       if (hit) {
         selectObject(hit.id);
+        beginSceneChange();
         dragState.active = true;
         dragState.objectId = hit.id;
         const pos = hit.transform.worldPosition;
@@ -215,6 +218,7 @@ export function SceneViewPanel() {
     selectedId,
     selectObject,
     markSceneChanged,
+    beginSceneChange,
     paintTileAtWorld,
   ]);
 

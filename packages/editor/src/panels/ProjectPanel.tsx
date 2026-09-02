@@ -21,6 +21,7 @@ export function ProjectPanel() {
   const scene = useSceneStore((s) => s.scene);
   const selectedId = useSceneStore((s) => s.selectedId);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
+  const beginSceneChange = useSceneStore((s) => s.beginSceneChange);
   const selectObject = useSceneStore((s) => s.selectObject);
   const openSaveDialog = usePrefabStore((s) => s.openSaveDialog);
   const instantiatePrefab = useSceneStore((s) => s.instantiatePrefab);
@@ -31,10 +32,14 @@ export function ProjectPanel() {
 
   const importFiles = async (files: FileList | File[]) => {
     if (!projectId) return;
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    beginSceneChange();
+    for (const file of imageFiles) {
       await projectService.importAsset(projectId, file);
     }
+    markSceneChanged();
   };
 
   const createSpriteObject = (assetId: string) => {
@@ -43,6 +48,7 @@ export function ProjectPanel() {
     const asset = assets.find((a) => a.id === assetId);
     if (!image || !asset) return;
 
+    beginSceneChange();
     const obj = scene.createGameObject(asset.name.replace(/\.[^.]+$/, ''));
     const sprite = obj.addComponent(new SpriteRenderer());
     sprite.spriteAssetId = assetId;
@@ -56,6 +62,7 @@ export function ProjectPanel() {
 
   const removeScript = (scriptId: string) => {
     if (!scene) return;
+    beginSceneChange();
     deleteScript(scriptId);
     for (const root of scene.rootObjects) {
       clearScriptReferences(root, scriptId);
@@ -64,6 +71,7 @@ export function ProjectPanel() {
   };
 
   const removePrefab = (prefabId: string) => {
+    beginSceneChange();
     deletePrefab(prefabId);
     markSceneChanged();
   };

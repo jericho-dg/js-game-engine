@@ -15,6 +15,7 @@ import { NewScriptDialog } from './components/NewScriptDialog';
 import { SavePrefabDialog } from './components/SavePrefabDialog';
 import { Input } from '@js-game-engine/engine';
 import { useSceneStore } from './stores/sceneStore';
+import { useHistoryStore } from './stores/historyStore';
 
 function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
   return (
@@ -32,6 +33,10 @@ export default function App() {
   const isLoaded = useSceneStore((s) => s.isLoaded);
   const deleteSelected = useSceneStore((s) => s.deleteSelected);
   const editorMode = useSceneStore((s) => s.editorMode);
+  const undo = useHistoryStore((s) => s.undo);
+  const redo = useHistoryStore((s) => s.redo);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -42,6 +47,17 @@ export default function App() {
 
       const target = event.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          if (canRedo) redo();
+        } else if (canUndo) {
+          undo();
+        }
+        return;
+      }
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
@@ -61,7 +77,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [deleteSelected, editorMode]);
+  }, [canRedo, canUndo, deleteSelected, editorMode, redo, undo]);
 
   if (!isLoaded) {
     return (

@@ -12,6 +12,7 @@ import {
   unregisterCompiledScript,
 } from '../scripting/scriptCompileRegistry';
 import { useConsoleStore } from './consoleStore';
+import { useHistoryStore } from './historyStore';
 
 interface ScriptState {
   scripts: ScriptRecord[];
@@ -113,10 +114,12 @@ export const useScriptStore = create<ScriptState>((set, get) => ({
     const source = get().getEditorSource(id);
     const record: ScriptRecord = { ...script, source };
 
+    useHistoryStore.getState().beginChange();
     set({ isSavingScript: true });
     try {
       const error = await validateAndCompileScript(record);
       if (error) {
+        useHistoryStore.getState().cancelPendingChange();
         set((state) => ({
           scriptErrors: { ...state.scriptErrors, [id]: error },
         }));

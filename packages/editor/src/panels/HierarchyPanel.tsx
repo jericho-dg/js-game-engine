@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { GameObject } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
 import { useSceneStore } from '../stores/sceneStore';
+import { useHistoryStore } from '../stores/historyStore';
 
 export function HierarchyPanel() {
   const scene = useSceneStore((s) => s.scene);
@@ -71,6 +72,7 @@ function HierarchyNode({
 }) {
   const isSelected = object.id === selectedId;
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
+  const beginSceneChange = useSceneStore((s) => s.beginSceneChange);
   const [isRenaming, setIsRenaming] = useState(false);
   const [name, setName] = useState(object.name);
 
@@ -82,14 +84,15 @@ function HierarchyNode({
 
   const commitRename = () => {
     const trimmed = name.trim();
-    if (trimmed) {
+    if (trimmed && trimmed !== object.name) {
       object.name = trimmed;
       setName(trimmed);
+      markSceneChanged();
     } else {
       setName(object.name);
+      useHistoryStore.getState().cancelPendingChange();
     }
     setIsRenaming(false);
-    markSceneChanged();
   };
 
   const paddingLeft = `${depth * 12 + 8}px`;
@@ -110,6 +113,7 @@ function HierarchyNode({
             if (e.key === 'Escape') {
               setIsRenaming(false);
               setName(object.name);
+              useHistoryStore.getState().cancelPendingChange();
             }
           }}
           onClick={(e) => e.stopPropagation()}
@@ -123,6 +127,7 @@ function HierarchyNode({
           onDoubleClick={(e) => {
             e.preventDefault();
             onSelect(object.id);
+            beginSceneChange();
             setIsRenaming(true);
           }}
           title="Double-click to rename"
