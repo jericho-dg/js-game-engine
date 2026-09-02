@@ -11,6 +11,7 @@ import {
   SpriteRenderer,
   TilemapRenderer,
   BoxCollider2D,
+  AudioSource,
   type Component,
   deserializeScene,
   serializeScene,
@@ -53,6 +54,7 @@ interface SceneState {
   removeComponent: (objectId: string, component: Component) => void;
   assignSpriteAsset: (objectId: string, assetId: string | null) => void;
   assignTilesetAsset: (objectId: string, assetId: string | null) => void;
+  assignAudioAsset: (objectId: string, assetId: string | null) => void;
   assignScriptAsset: (objectId: string, scriptId: string | null) => void;
   saveSelectionAsPrefab: (name: string) => boolean;
   instantiatePrefab: (prefabId: string) => void;
@@ -305,6 +307,27 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       }
     } else {
       sprite.image = null;
+    }
+    get().markSceneChanged();
+  },
+
+  assignAudioAsset: (objectId, assetId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj) return;
+    const audio = obj.getComponent(AudioSource);
+    if (!audio) return;
+
+    get().beginSceneChange();
+    audio.audioAssetId = assetId;
+    if (assetId) {
+      const clip = useAssetStore.getState().getAudioBuffer(assetId);
+      if (clip) {
+        audio.clip = clip;
+      }
+    } else {
+      audio.clip = null;
     }
     get().markSceneChanged();
   },

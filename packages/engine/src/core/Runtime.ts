@@ -2,6 +2,7 @@ import { Scene } from './Scene';
 import { GameLoop } from './GameLoop';
 import { Time } from '../input/Input';
 import { Canvas2DRenderer } from '../rendering/Canvas2DRenderer';
+import { AudioSystem } from '../audio/AudioSystem';
 
 export interface RuntimeOptions {
   scene: Scene;
@@ -52,12 +53,14 @@ export class Runtime {
   }
 
   start(): void {
+    void AudioSystem.ensureContext();
     this.scene.start();
     this.loop.start();
   }
 
   stop(): void {
     this.loop.stop();
+    AudioSystem.stopAll();
     this.scene.stop();
   }
 

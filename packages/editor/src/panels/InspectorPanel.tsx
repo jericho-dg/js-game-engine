@@ -7,6 +7,7 @@ import {
   TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
+  AudioSource,
   type Component,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
@@ -175,6 +176,41 @@ export function InspectorPanel() {
             <ScriptAssetField
               objectId={selected.id}
               script={selected.getComponent(ScriptComponent)!}
+            />
+          </ComponentSection>
+        )}
+
+        {selected.getComponent(AudioSource) && (
+          <ComponentSection
+            title="Audio Source"
+            onRemove={makeRemoveHandler(selected.getComponent(AudioSource)!)}
+          >
+            <AudioAssetField
+              objectId={selected.id}
+              audio={selected.getComponent(AudioSource)!}
+            />
+            <NumberField
+              key={`${selected.id}-audio-volume`}
+              label="Volume"
+              value={selected.getComponent(AudioSource)!.volume}
+              onChange={(v) => {
+                selected.getComponent(AudioSource)!.volume = Math.max(0, v);
+              }}
+              step={0.05}
+            />
+            <BoolField
+              label="Loop"
+              value={selected.getComponent(AudioSource)!.loop}
+              onChange={(v) => {
+                selected.getComponent(AudioSource)!.loop = v;
+              }}
+            />
+            <BoolField
+              label="Play On Awake"
+              value={selected.getComponent(AudioSource)!.playOnAwake}
+              onChange={(v) => {
+                selected.getComponent(AudioSource)!.playOnAwake = v;
+              }}
             />
           </ComponentSection>
         )}
@@ -437,7 +473,7 @@ function TilesetAssetField({
         className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
       >
         <option value="">None (colored tiles)</option>
-        {assets.map((asset) => (
+        {assets.filter((asset) => asset.type === 'sprite').map((asset) => (
           <option key={asset.id} value={asset.id}>
             {asset.name}
           </option>
@@ -466,7 +502,36 @@ function SpriteAssetField({
         className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
       >
         <option value="">None (color quad)</option>
-        {assets.map((asset) => (
+        {assets.filter((asset) => asset.type === 'sprite').map((asset) => (
+          <option key={asset.id} value={asset.id}>
+            {asset.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function AudioAssetField({
+  objectId,
+  audio,
+}: {
+  objectId: string;
+  audio: AudioSource;
+}) {
+  const assets = useAssetStore((s) => s.assets);
+  const assignAudioAsset = useSceneStore((s) => s.assignAudioAsset);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-xs text-[#858585]">Audio Clip</label>
+      <select
+        value={audio.audioAssetId ?? ''}
+        onChange={(e) => assignAudioAsset(objectId, e.target.value || null)}
+        className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
+      >
+        <option value="">None</option>
+        {assets.filter((asset) => asset.type === 'audio').map((asset) => (
           <option key={asset.id} value={asset.id}>
             {asset.name}
           </option>

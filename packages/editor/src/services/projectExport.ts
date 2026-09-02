@@ -5,7 +5,7 @@ import {
   type ProjectData,
   type ProjectExportManifest,
 } from '@js-game-engine/shared';
-import { Scene, deserializeScene, serializeScene } from '@js-game-engine/engine';
+import { Scene, deserializeScene, serializeScene, AudioSystem } from '@js-game-engine/engine';
 import { db } from './db';
 import { hydrateSceneAssets, projectService } from './ProjectService';
 import { useAssetStore } from '../stores/assetStore';
@@ -17,15 +17,18 @@ import { useScriptStore } from '../stores/scriptStore';
 export const EXPORT_FORMAT_VERSION = '1';
 export const EXPORT_FILE_EXTENSION = '.jge.zip';
 
-function extensionForMime(mimeType: string): string {
+export function extensionForMime(mimeType: string): string {
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return '.jpg';
   if (mimeType === 'image/webp') return '.webp';
   if (mimeType === 'image/gif') return '.gif';
+  if (mimeType === 'audio/mpeg') return '.mp3';
+  if (mimeType === 'audio/wav' || mimeType === 'audio/x-wav') return '.wav';
+  if (mimeType === 'audio/ogg') return '.ogg';
   return '.bin';
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -116,8 +119,13 @@ export async function importProjectZip(file: File, projectId: string): Promise<v
 
     await db.assets.put({ ...record, blob });
 
-    const image = await loadImageFromBlob(blob);
-    useAssetStore.getState().registerAsset(record, image, blob);
+    if (record.type === 'audio') {
+      const buffer = await AudioSystem.decodeBlob(blob);
+      useAssetStore.getState().registerAudioAsset(record, buffer, blob);
+    } else {
+      const image = await loadImageFromBlob(blob);
+      useAssetStore.getState().registerSpriteAsset(record, image, blob);
+    }
   }
 
   await db.projects.put({

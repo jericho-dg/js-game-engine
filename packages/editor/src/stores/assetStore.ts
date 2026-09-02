@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AssetRecord } from '@js-game-engine/shared';
+import { AudioSystem } from '@js-game-engine/engine';
 import { db } from '../services/db';
 
 export interface AssetSnapshot extends AssetRecord {
@@ -9,13 +10,16 @@ export interface AssetSnapshot extends AssetRecord {
 interface AssetState {
   assets: AssetRecord[];
   imageCache: Map<string, HTMLImageElement>;
+  audioBufferCache: Map<string, AudioBuffer>;
   thumbnailCache: Map<string, string>;
   blobCache: Map<string, Blob>;
   loadForProject: (projectId: string) => Promise<void>;
   clearAll: () => void;
-  registerAsset: (record: AssetRecord, image: HTMLImageElement, blob: Blob) => void;
+  registerSpriteAsset: (record: AssetRecord, image: HTMLImageElement, blob: Blob) => void;
+  registerAudioAsset: (record: AssetRecord, buffer: AudioBuffer, blob: Blob) => void;
   removeAsset: (assetId: string) => void;
   getImage: (assetId: string) => HTMLImageElement | undefined;
+  getAudioBuffer: (assetId: string) => AudioBuffer | undefined;
   getThumbnailUrl: (assetId: string) => string | undefined;
   captureSnapshots: () => AssetSnapshot[];
   restoreFromSnapshots: (snapshots: AssetSnapshot[]) => Promise<void>;
@@ -30,12 +34,14 @@ function revokeThumbnails(thumbnailCache: Map<string, string>): void {
 export const useAssetStore = create<AssetState>((set, get) => ({
   assets: [],
   imageCache: new Map(),
+  audioBufferCache: new Map(),
   thumbnailCache: new Map(),
   blobCache: new Map(),
 
   loadForProject: async (projectId) => {
     const stored = await db.assets.where('projectId').equals(projectId).toArray();
     const imageCache = new Map<string, HTMLImageElement>();
+    const audioBufferCache = new Map<string, AudioBuffer>();
     const thumbnailCache = new Map<string, string>();
     const blobCache = new Map<string, Blob>();
     const assets: AssetRecord[] = [];
@@ -52,12 +58,18 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       });
 
       blobCache.set(entry.id, entry.blob);
-      const image = await loadImageFromBlob(entry.blob);
-      imageCache.set(entry.id, image);
-      thumbnailCache.set(entry.id, URL.createObjectURL(entry.blob));
+
+      if (entry.type === 'audio') {
+        const buffer = await AudioSystem.decodeBlob(entry.blob);
+        audioBufferCache.set(entry.id, buffer);
+      } else {
+        const image = await loadImageFromBlob(entry.blob);
+        imageCache.set(entry.id, image);
+        thumbnailCache.set(entry.id, URL.createObjectURL(entry.blob));
+      }
     }
 
-    set({ assets, imageCache, thumbnailCache, blobCache });
+    set({ assets, imageCache, audioBufferCache, thumbnailCache, blobCache });
   },
 
   clearAll: () => {
@@ -65,12 +77,13 @@ export const useAssetStore = create<AssetState>((set, get) => ({
     set({
       assets: [],
       imageCache: new Map(),
+      audioBufferCache: new Map(),
       thumbnailCache: new Map(),
       blobCache: new Map(),
     });
   },
 
-  registerAsset: (record, image, blob) => {
+  registerSpriteAsset: (record, image, blob) => {
     set((state) => {
       const nextImages = new Map(state.imageCache);
       nextImages.set(record.id, image);
@@ -87,6 +100,20 @@ export const useAssetStore = create<AssetState>((set, get) => ({
     });
   },
 
+  registerAudioAsset: (record, buffer, blob) => {
+    set((state) => {
+      const nextBuffers = new Map(state.audioBufferCache);
+      nextBuffers.set(record.id, buffer);
+      const nextBlobs = new Map(state.blobCache);
+      nextBlobs.set(record.id, blob);
+      return {
+        assets: [...state.assets, record],
+        audioBufferCache: nextBuffers,
+        blobCache: nextBlobs,
+      };
+    });
+  },
+
   removeAsset: (assetId) => {
     set((state) => {
       const thumb = state.thumbnailCache.get(assetId);
@@ -94,6 +121,8 @@ export const useAssetStore = create<AssetState>((set, get) => ({
 
       const nextImages = new Map(state.imageCache);
       nextImages.delete(assetId);
+      const nextBuffers = new Map(state.audioBufferCache);
+      nextBuffers.delete(assetId);
       const nextThumbs = new Map(state.thumbnailCache);
       nextThumbs.delete(assetId);
       const nextBlobs = new Map(state.blobCache);
@@ -102,6 +131,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       return {
         assets: state.assets.filter((asset) => asset.id !== assetId),
         imageCache: nextImages,
+        audioBufferCache: nextBuffers,
         thumbnailCache: nextThumbs,
         blobCache: nextBlobs,
       };
@@ -109,6 +139,8 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   },
 
   getImage: (assetId) => get().imageCache.get(assetId),
+
+  getAudioBuffer: (assetId) => get().audioBufferCache.get(assetId),
 
   getThumbnailUrl: (assetId) => get().thumbnailCache.get(assetId),
 
@@ -128,6 +160,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
 
     const assets: AssetRecord[] = [];
     const imageCache = new Map<string, HTMLImageElement>();
+    const audioBufferCache = new Map<string, AudioBuffer>();
     const thumbnailCache = new Map<string, string>();
     const blobCache = new Map<string, Blob>();
 
@@ -135,12 +168,18 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       const { blob, ...record } = snapshot;
       assets.push(record);
       blobCache.set(record.id, blob);
-      const image = await loadImageFromBlob(blob);
-      imageCache.set(record.id, image);
-      thumbnailCache.set(record.id, URL.createObjectURL(blob));
+
+      if (record.type === 'audio') {
+        const buffer = await AudioSystem.decodeBlob(blob);
+        audioBufferCache.set(record.id, buffer);
+      } else {
+        const image = await loadImageFromBlob(blob);
+        imageCache.set(record.id, image);
+        thumbnailCache.set(record.id, URL.createObjectURL(blob));
+      }
     }
 
-    set({ assets, imageCache, thumbnailCache, blobCache });
+    set({ assets, imageCache, audioBufferCache, thumbnailCache, blobCache });
   },
 }));
 
@@ -158,4 +197,13 @@ function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
     };
     image.src = url;
   });
+}
+
+/** @deprecated Use registerSpriteAsset */
+export function registerAsset(
+  record: AssetRecord,
+  image: HTMLImageElement,
+  blob: Blob,
+): void {
+  useAssetStore.getState().registerSpriteAsset(record, image, blob);
 }

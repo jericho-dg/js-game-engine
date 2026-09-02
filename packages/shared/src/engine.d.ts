@@ -35,6 +35,16 @@ declare class Rigidbody2D {
   isKinematic: boolean;
 }
 
+declare class AudioSource {
+  readonly gameObject: GameObject;
+  volume: number;
+  loop: boolean;
+  playOnAwake: boolean;
+  play(): void;
+  playOneShot(): void;
+  stop(): void;
+}
+
 declare class Collision2D {
   readonly gameObject: GameObject;
   readonly collider: BoxCollider2D;
@@ -46,6 +56,7 @@ declare class Behaviour {
   bind(gameObject: GameObject): void;
   getRigidbody2D(): Rigidbody2D | null;
   getBoxCollider2D(): BoxCollider2D | null;
+  getAudioSource(): AudioSource | null;
   onAwake(): void;
   onStart(): void;
   onUpdate(deltaTime: number): void;
@@ -81,6 +92,7 @@ declare module '@js-game-engine/script-api' {
     Vector2,
     BoxCollider2D,
     Rigidbody2D,
+    AudioSource,
     Collision2D,
     Input,
     Time,
@@ -96,6 +108,7 @@ declare module 'engine' {
     Vector2,
     BoxCollider2D,
     Rigidbody2D,
+    AudioSource,
     Collision2D,
     Input,
     Time,

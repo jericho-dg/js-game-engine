@@ -67,6 +67,14 @@ export type SerializedComponent =
       mapHeight: number;
       tiles: number[];
       sortingOrder: number;
+    }
+  | {
+      type: 'AudioSource';
+      enabled: boolean;
+      audioAssetId: string | null;
+      volume: number;
+      loop: boolean;
+      playOnAwake: boolean;
     };
 
 export interface PrefabRecord {
@@ -103,11 +111,13 @@ export interface ProjectData {
   prefabs?: PrefabRecord[];
 }
 
+export type AssetType = 'sprite' | 'audio';
+
 export interface AssetRecord {
   id: string;
   projectId: string;
   name: string;
-  type: 'sprite';
+  type: AssetType;
   mimeType: string;
   width: number;
   height: number;
@@ -124,7 +134,7 @@ export interface StoredAsset {
   id: string;
   projectId: string;
   name: string;
-  type: 'sprite';
+  type: AssetType;
   mimeType: string;
   width: number;
   height: number;
@@ -134,7 +144,7 @@ export interface StoredAsset {
 export interface ProjectExportAsset {
   id: string;
   name: string;
-  type: 'sprite';
+  type: AssetType;
   mimeType: string;
   width: number;
   height: number;

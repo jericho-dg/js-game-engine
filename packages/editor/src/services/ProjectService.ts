@@ -11,8 +11,10 @@ import {
   ScriptComponent,
   SpriteRenderer,
   TilemapRenderer,
+  AudioSource,
   BoxCollider2D,
   Rigidbody2D,
+  AudioSystem,
   deserializeScene,
   serializeScene,
   type GameObject,
@@ -23,6 +25,7 @@ import { usePrefabStore } from '../stores/prefabStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
+import { createJumpSoundWav, JUMP_SFX_ASSET_ID } from '../demo/jumpSound';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const LEGACY_SPIN_SCRIPT_ID = 'script-spin-demo';
@@ -44,6 +47,9 @@ function migrateLoadedProject(scene: Scene, scripts: ScriptRecord[]): ScriptReco
   const scriptIds = new Set(nextScripts.map((script) => script.id));
   if (scriptIds.has(CURRENT_PLAYER_SCRIPT_ID)) {
     remapScriptReferences(scene, LEGACY_SPIN_SCRIPT_ID, CURRENT_PLAYER_SCRIPT_ID);
+    nextScripts = nextScripts.map((script) =>
+      script.id === CURRENT_PLAYER_SCRIPT_ID ? createDefaultPlayerMoveScript() : script,
+    );
   }
 
   return nextScripts;
@@ -74,6 +80,40 @@ function remapScriptReferencesRecursive(
   }
 }
 
+async function ensureDefaultDemoAssets(projectId: string): Promise<void> {
+  const existing = await db.assets.get(JUMP_SFX_ASSET_ID);
+  if (existing) return;
+
+  const blob = createJumpSoundWav();
+  const buffer = await AudioSystem.decodeBlob(blob);
+  const record: AssetRecord = {
+    id: JUMP_SFX_ASSET_ID,
+    projectId,
+    name: 'jump.wav',
+    type: 'audio',
+    mimeType: 'audio/wav',
+    width: 0,
+    height: 0,
+  };
+
+  await db.assets.put({ ...record, blob });
+  useAssetStore.getState().registerAudioAsset(record, buffer, blob);
+}
+
+function migrateDemoScene(scene: Scene): boolean {
+  const player = scene.findByName('Player');
+  if (!player) return false;
+
+  if (player.getComponent(AudioSource)) return false;
+
+  const audio = player.addComponent(new AudioSource());
+  audio.audioAssetId = JUMP_SFX_ASSET_ID;
+  audio.playOnAwake = false;
+  audio.volume = 0.65;
+  audio.loop = false;
+  return true;
+}
+
 function createDefaultProjectData(): ProjectData {
   const playerScript = createDefaultPlayerMoveScript();
   const scene = new Scene('Main');
@@ -94,6 +134,11 @@ function createDefaultProjectData(): ProjectData {
   playerBody.gravityScale = 1;
   const playerScriptComponent = player.addComponent(new ScriptComponent());
   playerScriptComponent.scriptAssetId = playerScript.id;
+  const jumpAudio = player.addComponent(new AudioSource());
+  jumpAudio.audioAssetId = JUMP_SFX_ASSET_ID;
+  jumpAudio.playOnAwake = false;
+  jumpAudio.volume = 0.65;
+  jumpAudio.loop = false;
 
   const ground = scene.createGameObject('Ground');
   ground.transform.localPosition.set(0, -120);
@@ -119,7 +164,7 @@ function createDefaultProjectData(): ProjectData {
 
   return {
     version: PROJECT_VERSION,
-    name: 'Untitled Project',
+    name: 'Jump Demo',
     scene: serializeScene(scene),
     scripts: [playerScript],
     prefabs: [],
@@ -147,14 +192,33 @@ export class ProjectService {
         updatedAt: Date.now(),
       };
       await db.projects.put(stored);
+      await ensureDefaultDemoAssets(stored.id);
     }
 
-    let scripts = stored.data.scripts ?? [];
-
+    await ensureDefaultDemoAssets(stored.id);
     await useAssetStore.getState().loadForProject(stored.id);
     const scene = deserializeScene(stored.data.scene);
-    scripts = migrateLoadedProject(scene, scripts);
+    let scripts = migrateLoadedProject(scene, stored.data.scripts ?? []);
+    const sceneMigrated = migrateDemoScene(scene);
     hydrateSceneAssets(scene);
+
+    const scriptsChanged =
+      JSON.stringify(scripts) !== JSON.stringify(stored.data.scripts ?? []);
+    const shouldRenameDemo = stored.name === 'Untitled Project' && scene.findByName('Player');
+
+    if (sceneMigrated || scriptsChanged || shouldRenameDemo) {
+      stored = {
+        ...stored,
+        name: shouldRenameDemo ? 'Jump Demo' : stored.name,
+        data: {
+          ...stored.data,
+          scene: serializeScene(scene),
+          scripts,
+        },
+        updatedAt: Date.now(),
+      };
+      await db.projects.put(stored);
+    }
 
     const prefabs = stored.data.prefabs ?? [];
     usePrefabStore.getState().setPrefabs(prefabs);
@@ -217,6 +281,7 @@ export class ProjectService {
     useAssetStore.getState().clearAll();
 
     const data = createDefaultProjectData();
+    await ensureDefaultDemoAssets(projectId);
     await db.projects.put({
       id: projectId,
       name: data.name,
@@ -225,6 +290,7 @@ export class ProjectService {
     });
 
     const scene = deserializeScene(data.scene);
+    await useAssetStore.getState().loadForProject(projectId);
     hydrateSceneAssets(scene);
     usePrefabStore.getState().setPrefabs(data.prefabs ?? []);
 
@@ -238,10 +304,16 @@ export class ProjectService {
   }
 
   async importAsset(projectId: string, file: File): Promise<AssetRecord> {
-    if (!file.type.startsWith('image/')) {
-      throw new Error('Only image files are supported.');
+    if (file.type.startsWith('image/')) {
+      return this.importImageAsset(projectId, file);
     }
+    if (file.type.startsWith('audio/')) {
+      return this.importAudioAsset(projectId, file);
+    }
+    throw new Error('Only image and audio files are supported.');
+  }
 
+  async importImageAsset(projectId: string, file: File): Promise<AssetRecord> {
     const image = await loadImageFromFile(file);
     const id = crypto.randomUUID();
     const record: AssetRecord = {
@@ -259,7 +331,29 @@ export class ProjectService {
       blob: file,
     });
 
-    useAssetStore.getState().registerAsset(record, image, file);
+    useAssetStore.getState().registerSpriteAsset(record, image, file);
+    return record;
+  }
+
+  async importAudioAsset(projectId: string, file: File): Promise<AssetRecord> {
+    const buffer = await AudioSystem.decodeBlob(file);
+    const id = crypto.randomUUID();
+    const record: AssetRecord = {
+      id,
+      projectId,
+      name: file.name,
+      type: 'audio',
+      mimeType: file.type || 'audio/mpeg',
+      width: 0,
+      height: 0,
+    };
+
+    await db.assets.put({
+      ...record,
+      blob: file,
+    });
+
+    useAssetStore.getState().registerAudioAsset(record, buffer, file);
     return record;
   }
 
@@ -315,9 +409,9 @@ export class ProjectService {
 export const projectService = new ProjectService();
 
 export function hydrateSceneAssets(scene: Scene): void {
-  const { getImage } = useAssetStore.getState();
+  const { getImage, getAudioBuffer } = useAssetStore.getState();
   for (const root of scene.rootObjects) {
-    hydrateObjectAssets(root, getImage);
+    hydrateObjectAssets(root, getImage, getAudioBuffer);
   }
 }
 
@@ -329,6 +423,7 @@ export function hydrateSceneSprites(scene: Scene): void {
 function hydrateObjectAssets(
   obj: GameObject,
   getImage: (id: string) => HTMLImageElement | undefined,
+  getAudioBuffer: (id: string) => AudioBuffer | undefined,
 ): void {
   for (const sprite of obj.getComponents(SpriteRenderer)) {
     if (sprite.spriteAssetId) {
@@ -353,8 +448,17 @@ function hydrateObjectAssets(
     tilemap.ensureTileBuffer();
   }
 
+  for (const audio of obj.getComponents(AudioSource)) {
+    if (audio.audioAssetId) {
+      const clip = getAudioBuffer(audio.audioAssetId);
+      if (clip) {
+        audio.clip = clip;
+      }
+    }
+  }
+
   for (const child of obj.children) {
-    hydrateObjectAssets(child, getImage);
+    hydrateObjectAssets(child, getImage, getAudioBuffer);
   }
 }
 
@@ -372,6 +476,12 @@ function clearAssetReferences(
     if (tilemap.tilesetAssetId === assetId) {
       tilemap.tilesetAssetId = null;
       tilemap.image = null;
+    }
+  }
+  for (const audio of obj.getComponents(AudioSource)) {
+    if (audio.audioAssetId === assetId) {
+      audio.audioAssetId = null;
+      audio.clip = null;
     }
   }
   for (const child of obj.children) {

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Smoke Test</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1a1a2e; }
+      #wrap { width: 640px; height: 400px; margin: 2rem auto; }
+      canvas { width: 100%; height: 100%; display: block; }
+      #overlay { cursor: pointer; padding: 1rem; color: #ccc; text-align: center; }
+      #overlay.hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <canvas id="game"></canvas>
+      <div id="overlay">Click to Play</div>
+    </div>
+    <script src="jge-player.js"></script>
+    <script>
+      JGEPlayer.bootstrap(
+        document.getElementById('game'),
+        document.getElementById('overlay'),
+      );
+    </script>
+  </body>
+</html>

@@ -3,6 +3,7 @@ import { Color } from '@js-game-engine/shared';
 import { Scene } from '../core/Scene';
 import { SpriteRenderer } from '../components/SpriteRenderer';
 import { TilemapRenderer } from '../components/TilemapRenderer';
+import { AudioSource } from '../components/AudioSource';
 import {
   deserializeScene,
   serializeGameObject,
@@ -56,6 +57,24 @@ describe('sceneSerialization', () => {
     expect(restoredTilemap?.mapHeight).toBe(3);
     expect(restoredTilemap?.tiles).toEqual(tilemap.tiles);
     expect(restoredTilemap?.sortingOrder).toBe(-5);
+  });
+
+  it('round-trips audio source data', () => {
+    const scene = new Scene('AudioTest');
+    const speaker = scene.createGameObject('Speaker');
+    const audio = speaker.addComponent(new AudioSource());
+    audio.audioAssetId = 'audio-1';
+    audio.volume = 0.75;
+    audio.loop = true;
+    audio.playOnAwake = false;
+
+    const restored = deserializeScene(serializeScene(scene));
+    const restoredAudio = restored.rootObjects[0].getComponent(AudioSource);
+
+    expect(restoredAudio?.audioAssetId).toBe('audio-1');
+    expect(restoredAudio?.volume).toBe(0.75);
+    expect(restoredAudio?.loop).toBe(true);
+    expect(restoredAudio?.playOnAwake).toBe(false);
   });
 });
 

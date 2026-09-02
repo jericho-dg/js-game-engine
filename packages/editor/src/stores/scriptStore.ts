@@ -244,9 +244,11 @@ export function createDefaultPlayerMoveScript(): ScriptRecord {
   moveSpeed = 200;
   jumpSpeed = 350;
   body = null;
+  jumpAudio = null;
 
   onStart() {
     this.body = this.getRigidbody2D();
+    this.jumpAudio = this.getAudioSource();
   }
 
   onFixedUpdate() {
@@ -255,6 +257,9 @@ export function createDefaultPlayerMoveScript(): ScriptRecord {
 
     if (Input.getKey(' ') && Math.abs(this.body.velocity.y) < 1) {
       this.body.velocity.y = this.jumpSpeed;
+      if (this.jumpAudio) {
+        this.jumpAudio.playOneShot();
+      }
     }
   }
 

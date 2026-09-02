@@ -1,0 +1,21 @@
+{
+  "name": "@js-game-engine/player",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && mkdir -p ../editor/public && cp dist/jge-player.js ../editor/public/jge-player.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@js-game-engine/engine": "*",
+    "@js-game-engine/shared": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.5"
+  }
+}

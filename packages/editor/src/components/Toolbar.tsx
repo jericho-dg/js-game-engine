@@ -4,6 +4,7 @@ import { useScriptStore } from '../stores/scriptStore';
 import { useHistoryStore } from '../stores/historyStore';
 import { projectService } from '../services/ProjectService';
 import { exportProjectZip, importProjectZip } from '../services/projectExport';
+import { exportStandaloneGame } from '../services/standaloneExport';
 import { useConsoleStore } from '../stores/consoleStore';
 
 export function Toolbar() {
@@ -36,6 +37,17 @@ export function Toolbar() {
     }
   };
 
+  const exportGame = async () => {
+    if (!scene || !projectId || editorMode === 'play' || isCompilingScripts) return;
+    try {
+      await exportStandaloneGame(scene, projectId, projectName);
+      useConsoleStore.getState().log('log', `Exported standalone game: ${projectName}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      useConsoleStore.getState().log('error', `Export game failed: ${message}`);
+    }
+  };
+
   const importProject = async (file: File) => {
     if (!projectId || editorMode === 'play') return;
     const confirmed = window.confirm(
@@ -63,6 +75,12 @@ export function Toolbar() {
           title="Export project as .jge.zip"
           disabled={!isEditing}
           onClick={() => void exportProject()}
+        />
+        <ToolbarButton
+          label="Export Game"
+          title="Export standalone HTML5 game (.zip)"
+          disabled={!isEditing || isCompilingScripts}
+          onClick={() => void exportGame()}
         />
         <ToolbarButton
           label="Import"
