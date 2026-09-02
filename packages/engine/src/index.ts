@@ -18,6 +18,8 @@ export { ScriptComponent } from './components/ScriptComponent';
 export { BoxCollider2D } from './components/BoxCollider2D';
 export { Rigidbody2D } from './components/Rigidbody2D';
 export { TilemapRenderer } from './components/TilemapRenderer';
+export { AudioSource } from './components/AudioSource';
+export { AudioSystem } from './audio/AudioSystem';
 
 export { Behaviour } from './scripting/Behaviour';
 export { Collision2D } from './physics/Collision2D';

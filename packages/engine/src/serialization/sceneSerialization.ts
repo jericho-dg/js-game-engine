@@ -11,6 +11,7 @@ import { SpriteRenderer } from '../components/SpriteRenderer';
 import { BoxCollider2D } from '../components/BoxCollider2D';
 import { Rigidbody2D } from '../components/Rigidbody2D';
 import { TilemapRenderer } from '../components/TilemapRenderer';
+import { AudioSource } from '../components/AudioSource';
 import { GameObject } from '../core/GameObject';
 import { Scene } from '../core/Scene';
 
@@ -102,6 +103,17 @@ export function serializeGameObject(obj: GameObject): SerializedGameObject {
     });
   }
 
+  for (const component of obj.getComponents(AudioSource)) {
+    components.push({
+      type: 'AudioSource',
+      enabled: component.enabled,
+      audioAssetId: component.audioAssetId,
+      volume: component.volume,
+      loop: component.loop,
+      playOnAwake: component.playOnAwake,
+    });
+  }
+
   return {
     id: obj.id,
     name: obj.name,
@@ -181,6 +193,13 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
       body.velocity.set(data.velocity.x, data.velocity.y);
       body.gravityScale = data.gravityScale;
       body.isKinematic = data.isKinematic;
+    } else if (data.type === 'AudioSource') {
+      const audio = obj.addComponent(new AudioSource());
+      audio.enabled = data.enabled;
+      audio.audioAssetId = data.audioAssetId;
+      audio.volume = data.volume;
+      audio.loop = data.loop;
+      audio.playOnAwake = data.playOnAwake;
     }
   }
 }

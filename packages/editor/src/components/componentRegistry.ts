@@ -7,6 +7,7 @@ import {
   ScriptComponent,
   SpriteRenderer,
   TilemapRenderer,
+  AudioSource,
 } from '@js-game-engine/engine';
 
 export interface AddableComponentEntry {
@@ -23,6 +24,7 @@ export const ADDABLE_COMPONENTS: AddableComponentEntry[] = [
   { componentClass: BoxCollider2D, label: BoxCollider2D.editorDisplayName, singleton: true },
   { componentClass: Rigidbody2D, label: Rigidbody2D.editorDisplayName, singleton: true },
   { componentClass: TilemapRenderer, label: TilemapRenderer.editorDisplayName, singleton: true },
+  { componentClass: AudioSource, label: AudioSource.editorDisplayName, singleton: true },
   { componentClass: Rotator, label: Rotator.editorDisplayName, singleton: true },
 ];
 

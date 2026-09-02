@@ -4,7 +4,7 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 ## Status
 
-**Phase 6 — Export and Polish** in progress. Undo/redo and ZIP project export/import are available.
+**Phase 6 — Export and Polish** in progress. Undo/redo, ZIP project export/import, and standalone HTML game export are available.
 
 **Phase 5 — Tilemaps and Prefabs** complete. TilemapRenderer with tileset painting, prefab save/instantiate, and project persistence are included.
 
@@ -29,9 +29,17 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 - **Export** downloads a `.jge.zip` archive (manifest + assets)
 - **Import** replaces the current project from a `.jge.zip` file
 
-### Coming next
-- Standalone HTML export
-- Audio components
+### Standalone HTML export
+- **Export Game** downloads a self-contained `-game.zip` you can host or open locally
+- Contains `index.html`, `jge-player.js`, `game.json`, and an `assets/` folder
+- Click **Click to Play** to start (unlocks audio via user gesture)
+- Build the player bundle first if exporting from a fresh clone: `npm run build:player`
+
+### Audio
+- Add an **Audio Source** component and assign imported audio clips (MP3, WAV, OGG)
+- **Play On Awake**, **Loop**, and **Volume** controls in the Inspector
+- Audio plays during Play mode via the Web Audio API
+- The default **Jump Demo** includes a synthesized jump sound triggered from `PlayerMove.ts` via `getAudioSource().playOneShot()`
 
 ## Phase 5 features
 
@@ -52,6 +60,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 |---------|-------------|
 | `packages/editor` | React editor application (Vite + Tailwind) |
 | `packages/engine` | Pure TypeScript game runtime (no React) |
+| `packages/player` | Standalone HTML5 player bundle (`jge-player.js`) |
 | `packages/shared` | Shared types and schema |
 
 ## Scripts
@@ -59,6 +68,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start the editor dev server |
-| `npm run build` | Production build of the editor |
+| `npm run build:player` | Build the standalone player bundle |
+| `npm run build` | Build player + editor for production |
 | `npm run typecheck` | Type-check all packages |
 | `npm run test` | Run engine unit tests |

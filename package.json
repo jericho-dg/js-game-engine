@@ -6,8 +6,9 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @js-game-engine/editor",
-    "build": "npm run build -w @js-game-engine/editor",
+    "build:player": "npm run build -w @js-game-engine/player",
+    "build": "npm run build:player && npm run build -w @js-game-engine/editor",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test -w @js-game-engine/engine"
+    "test": "npm run test -w @js-game-engine/engine && npm run test -w @js-game-engine/player"
   }
 }

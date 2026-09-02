@@ -7,6 +7,7 @@ import {
   Debug,
   Input,
   Rigidbody2D,
+  AudioSource,
   Time,
   Vector2,
 } from '@js-game-engine/engine';
@@ -16,7 +17,7 @@ let esbuildReady: Promise<void> | null = null;
 let buildQueue: Promise<unknown> = Promise.resolve();
 const compileCache = new Map<string, new () => Behaviour>();
 /** Bump when ENGINE_SHIM changes so cached script classes are invalidated. */
-const COMPILE_VERSION = 2;
+const COMPILE_VERSION = 3;
 
 export function initScriptCompiler(): Promise<void> {
   if (!esbuildReady) {
@@ -48,6 +49,10 @@ export class Behaviour {
     if (!this.gameObject) return null;
     return this.gameObject.getComponent(globalThis.__JGE__.BoxCollider2D);
   }
+  getAudioSource() {
+    if (!this.gameObject) return null;
+    return this.gameObject.getComponent(globalThis.__JGE__.AudioSource);
+  }
   onAwake() {}
   onStart() {}
   onUpdate(_dt) {}
@@ -66,6 +71,7 @@ export class Collision2D {
 }
 export class BoxCollider2D {}
 export class Rigidbody2D {}
+export class AudioSource {}
 export const Input = globalThis.__JGE__.Input;
 export const Time = globalThis.__JGE__.Time;
 export const Debug = globalThis.__JGE__.Debug;
@@ -169,6 +175,7 @@ function installEngineGlobals(): void {
     Rigidbody2D,
     BoxCollider2D,
     Collision2D,
+    AudioSource,
   };
 }
 

@@ -32,11 +32,13 @@ export function ProjectPanel() {
 
   const importFiles = async (files: FileList | File[]) => {
     if (!projectId) return;
-    const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
+    const supportedFiles = Array.from(files).filter(
+      (file) => file.type.startsWith('image/') || file.type.startsWith('audio/'),
+    );
+    if (supportedFiles.length === 0) return;
 
     beginSceneChange();
-    for (const file of imageFiles) {
+    for (const file of supportedFiles) {
       await projectService.importAsset(projectId, file);
     }
     markSceneChanged();
@@ -95,12 +97,12 @@ export function ProjectPanel() {
             onClick={() => fileInputRef.current?.click()}
             className="rounded bg-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#4a4a4a]"
           >
-            Import PNG
+            Import Asset
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,audio/mpeg,audio/wav,audio/ogg,audio/x-wav"
             multiple
             className="hidden"
             onChange={(e) => {
@@ -113,7 +115,7 @@ export function ProjectPanel() {
         <div className="min-h-0 flex-1 overflow-auto p-2">
           {assets.length === 0 ? (
             <p className="text-sm text-[#858585]">
-              Drop PNG images here or use Import PNG.
+              Drop PNG images or audio files here, or use Import Asset.
             </p>
           ) : (
             <ul className="grid grid-cols-2 gap-2">
@@ -121,24 +123,34 @@ export function ProjectPanel() {
                 <li key={asset.id} className="group relative">
                   <button
                     type="button"
-                    title="Double-click to add to scene"
-                    onDoubleClick={() => createSpriteObject(asset.id)}
+                    title={
+                      asset.type === 'sprite'
+                        ? 'Double-click to add to scene'
+                        : 'Assign from Inspector on an Audio Source'
+                    }
+                    onDoubleClick={() => {
+                      if (asset.type === 'sprite') createSpriteObject(asset.id);
+                    }}
                     className="w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] p-2 text-left hover:border-[#007acc]"
                   >
                     <div className="mb-1 flex h-16 items-center justify-center overflow-hidden rounded bg-[#252526]">
-                      {getThumbnailUrl(asset.id) ? (
+                      {asset.type === 'sprite' && getThumbnailUrl(asset.id) ? (
                         <img
                           src={getThumbnailUrl(asset.id)}
                           alt={asset.name}
                           className="max-h-full max-w-full object-contain"
                         />
                       ) : (
-                        <span className="text-xs text-[#858585]">PNG</span>
+                        <span className="text-xs text-[#858585]">
+                          {asset.type === 'audio' ? 'Audio' : 'PNG'}
+                        </span>
                       )}
                     </div>
                     <p className="truncate text-xs text-[#cccccc]">{asset.name}</p>
                     <p className="text-[10px] text-[#858585]">
-                      {asset.width}×{asset.height}
+                      {asset.type === 'audio'
+                        ? 'Audio clip'
+                        : `${asset.width}×${asset.height}`}
                     </p>
                   </button>
                   <button
