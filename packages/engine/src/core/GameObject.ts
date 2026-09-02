@@ -44,16 +44,25 @@ export class GameObject {
     return this.components.filter((c) => c instanceof type) as T[];
   }
 
-  removeComponent<T extends Component>(type: new (...args: never[]) => T): T | null {
-    const index = this.components.findIndex((c) => c instanceof type);
-    if (index === -1) return null;
+  getAllComponents(): readonly Component[] {
+    return this.components;
+  }
 
-    const component = this.components[index];
-    if (component instanceof Transform) return null;
+  removeComponentInstance(component: Component): boolean {
+    if (!component.removable) return false;
+
+    const index = this.components.indexOf(component);
+    if (index === -1) return false;
 
     this.components.splice(index, 1);
     component.onDestroy();
-    return component as T;
+    return true;
+  }
+
+  removeComponent<T extends Component>(type: new (...args: never[]) => T): T | null {
+    const component = this.getComponent(type);
+    if (!component) return null;
+    return this.removeComponentInstance(component) ? component : null;
   }
 
   getComponentsInChildren<T extends Component>(

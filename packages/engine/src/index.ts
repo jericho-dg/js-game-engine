@@ -17,6 +17,7 @@ export { Rotator } from './components/Rotator';
 export { ScriptComponent } from './components/ScriptComponent';
 export { BoxCollider2D } from './components/BoxCollider2D';
 export { Rigidbody2D } from './components/Rigidbody2D';
+export { TilemapRenderer } from './components/TilemapRenderer';
 
 export { Behaviour } from './scripting/Behaviour';
 export { Collision2D } from './physics/Collision2D';
@@ -34,8 +35,14 @@ export {
 
 export {
   serializeScene,
+  serializeGameObject,
   deserializeScene,
+  instantiateSerializedGameObject,
 } from './serialization/sceneSerialization';
+export {
+  cloneSerializedGameObjectWithNewIds,
+  instantiatePrefabRoot,
+} from './serialization/prefabInstantiation';
 
 export function createEngine() {
   return { version: ENGINE_VERSION };

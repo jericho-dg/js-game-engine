@@ -4,10 +4,13 @@ import {
   Rotator,
   ScriptComponent,
   SpriteRenderer,
+  TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
+  type Component,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
+import { AddComponentMenu } from '../components/AddComponentMenu';
 import { useAssetStore } from '../stores/assetStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { getSelectedObject, useSceneStore } from '../stores/sceneStore';
@@ -18,14 +21,16 @@ const DEG_TO_RAD = Math.PI / 180;
 export function InspectorPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
   const editorMode = useSceneStore((s) => s.editorMode);
-  const addScriptComponent = useSceneStore((s) => s.addScriptComponent);
-  const addBoxCollider2D = useSceneStore((s) => s.addBoxCollider2D);
-  const addRigidbody2D = useSceneStore((s) => s.addRigidbody2D);
-  const removeScriptComponent = useSceneStore((s) => s.removeScriptComponent);
-  const removeBoxCollider2D = useSceneStore((s) => s.removeBoxCollider2D);
-  const removeRigidbody2D = useSceneStore((s) => s.removeRigidbody2D);
+  const removeComponent = useSceneStore((s) => s.removeComponent);
+  const tilePaintIndex = useSceneStore((s) => s.tilePaintIndex);
+  const setTilePaintIndex = useSceneStore((s) => s.setTilePaintIndex);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
+
+  const makeRemoveHandler = (component: Component) => {
+    if (editorMode !== 'edit' || !selected || !component.removable) return undefined;
+    return () => removeComponent(selected.id, component);
+  };
 
   if (!selected) {
     return (
@@ -94,7 +99,10 @@ export function InspectorPanel() {
         </ComponentSection>
 
         {selected.getComponent(Camera2D) && (
-          <ComponentSection title="Camera 2D">
+          <ComponentSection
+            title="Camera 2D"
+            onRemove={makeRemoveHandler(selected.getComponent(Camera2D)!)}
+          >
             <ReadonlyField label="Background" value="#1a1a2e" />
             <NumberField
               key={`${selected.id}-zoom`}
@@ -109,7 +117,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(SpriteRenderer) && (
-          <ComponentSection title="Sprite Renderer">
+          <ComponentSection
+            title="Sprite Renderer"
+            onRemove={makeRemoveHandler(selected.getComponent(SpriteRenderer)!)}
+          >
             <SpriteAssetField objectId={selected.id} sprite={selected.getComponent(SpriteRenderer)!} />
             <NumberField
               key={`${selected.id}-width`}
@@ -139,7 +150,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(Rotator) && (
-          <ComponentSection title="Rotator">
+          <ComponentSection
+            title="Rotator"
+            onRemove={makeRemoveHandler(selected.getComponent(Rotator)!)}
+          >
             <NumberField
               key={`${selected.id}-speed`}
               label="Speed"
@@ -152,32 +166,22 @@ export function InspectorPanel() {
           </ComponentSection>
         )}
 
-        {selected.getComponent(ScriptComponent) ? (
+        {selected.getComponent(ScriptComponent) && (
           <ComponentSection
             title="Script"
-            onRemove={editorMode === 'edit' ? () => removeScriptComponent(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(ScriptComponent)!)}
           >
             <ScriptAssetField
               objectId={selected.id}
               script={selected.getComponent(ScriptComponent)!}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addScriptComponent(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Script Component
-            </button>
-          )
         )}
 
-        {selected.getComponent(BoxCollider2D) ? (
+        {selected.getComponent(BoxCollider2D) && (
           <ComponentSection
             title="Box Collider 2D"
-            onRemove={editorMode === 'edit' ? () => removeBoxCollider2D(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(BoxCollider2D)!)}
           >
             <NumberField
               key={`${selected.id}-col-w`}
@@ -219,22 +223,77 @@ export function InspectorPanel() {
               }}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addBoxCollider2D(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Box Collider 2D
-            </button>
-          )
         )}
 
-        {selected.getComponent(Rigidbody2D) ? (
+        {selected.getComponent(TilemapRenderer) && (
+          <ComponentSection
+            title="Tilemap Renderer"
+            onRemove={makeRemoveHandler(selected.getComponent(TilemapRenderer)!)}
+          >
+            <TilesetAssetField
+              objectId={selected.id}
+              tilemap={selected.getComponent(TilemapRenderer)!}
+            />
+            <NumberField
+              key={`${selected.id}-tile-w`}
+              label="Tile Width"
+              value={selected.getComponent(TilemapRenderer)!.tileWidth}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.tileWidth = Math.max(1, v);
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-tile-h`}
+              label="Tile Height"
+              value={selected.getComponent(TilemapRenderer)!.tileHeight}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.tileHeight = Math.max(1, v);
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-map-w`}
+              label="Map Width"
+              value={selected.getComponent(TilemapRenderer)!.mapWidth}
+              onChange={(v) => {
+                const tilemap = selected.getComponent(TilemapRenderer)!;
+                tilemap.mapWidth = Math.max(1, Math.floor(v));
+                tilemap.ensureTileBuffer();
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-map-h`}
+              label="Map Height"
+              value={selected.getComponent(TilemapRenderer)!.mapHeight}
+              onChange={(v) => {
+                const tilemap = selected.getComponent(TilemapRenderer)!;
+                tilemap.mapHeight = Math.max(1, Math.floor(v));
+                tilemap.ensureTileBuffer();
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-tile-sort`}
+              label="Sorting Order"
+              value={selected.getComponent(TilemapRenderer)!.sortingOrder}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.sortingOrder = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-paint-index`}
+              label="Paint Tile Index"
+              value={tilePaintIndex}
+              onChange={(v) => setTilePaintIndex(Math.max(0, Math.floor(v)))}
+            />
+            <p className="text-[10px] text-[#858585]">
+              Click in the Scene view to paint tiles. Right-click to erase.
+            </p>
+          </ComponentSection>
+        )}
+
+        {selected.getComponent(Rigidbody2D) && (
           <ComponentSection
             title="Rigidbody 2D"
-            onRemove={editorMode === 'edit' ? () => removeRigidbody2D(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(Rigidbody2D)!)}
           >
             <NumberField
               key={`${selected.id}-rb-vx`}
@@ -269,17 +328,9 @@ export function InspectorPanel() {
               }}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addRigidbody2D(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Rigidbody 2D
-            </button>
-          )
         )}
+
+        {editorMode === 'edit' && <AddComponentMenu object={selected} />}
       </div>
     </Panel>
   );
@@ -355,6 +406,35 @@ function TextField({
         }}
         className="w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-1 text-sm text-[#cccccc] outline-none focus:border-[#007acc]"
       />
+    </div>
+  );
+}
+
+function TilesetAssetField({
+  objectId,
+  tilemap,
+}: {
+  objectId: string;
+  tilemap: TilemapRenderer;
+}) {
+  const assets = useAssetStore((s) => s.assets);
+  const assignTilesetAsset = useSceneStore((s) => s.assignTilesetAsset);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-xs text-[#858585]">Tileset</label>
+      <select
+        value={tilemap.tilesetAssetId ?? ''}
+        onChange={(e) => assignTilesetAsset(objectId, e.target.value || null)}
+        className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
+      >
+        <option value="">None (colored tiles)</option>
+        {assets.map((asset) => (
+          <option key={asset.id} value={asset.id}>
+            {asset.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

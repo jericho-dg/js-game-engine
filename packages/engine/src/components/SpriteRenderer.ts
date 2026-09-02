@@ -4,6 +4,7 @@ import { Component } from '../core/Component';
 export type SpriteSource = CanvasImageSource;
 
 export class SpriteRenderer extends Component {
+  static override readonly editorDisplayName = 'Sprite Renderer';
   /** Image to draw. When null, a colored quad is rendered instead. */
   image: SpriteSource | null = null;
   color = Color.fromHex('#4fc3f7');

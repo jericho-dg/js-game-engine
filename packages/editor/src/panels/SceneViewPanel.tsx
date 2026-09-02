@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import {
   Runtime,
+  TilemapRenderer,
   getSceneCamera,
   screenToWorld,
 } from '@js-game-engine/engine';
@@ -19,6 +20,7 @@ export function SceneViewPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
   const selectObject = useSceneStore((s) => s.selectObject);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
+  const paintTileAtWorld = useSceneStore((s) => s.paintTileAtWorld);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -31,6 +33,11 @@ export function SceneViewPanel() {
       active: false,
       objectId: null as string | null,
       offset: Vector2.zero(),
+    };
+    const paintState = {
+      active: false,
+      objectId: null as string | null,
+      erase: false,
     };
 
     const resize = () => {
@@ -98,11 +105,34 @@ export function SceneViewPanel() {
       );
     };
 
+    const tryPaintSelectedTilemap = (world: Vector2, erase: boolean): boolean => {
+      const selected = getSelectedObject();
+      const tilemap = selected?.getComponent(TilemapRenderer);
+      if (!selected || !tilemap) return false;
+
+      paintTileAtWorld(selected.id, world.x, world.y, erase);
+      renderEditFrame();
+      return true;
+    };
+
     const onPointerDown = (event: PointerEvent) => {
       if (editorMode !== 'edit') return;
       const activeScene = getActiveScene();
       if (!activeScene) return;
       const world = getWorldPoint(event.clientX, event.clientY);
+      const erase = event.button === 2;
+
+      const selected = getSelectedObject();
+      if (selected?.getComponent(TilemapRenderer)) {
+        if (tryPaintSelectedTilemap(world, erase)) {
+          paintState.active = true;
+          paintState.objectId = selected.id;
+          paintState.erase = erase;
+          container.setPointerCapture(event.pointerId);
+          return;
+        }
+      }
+
       const hit = hitTestScene(activeScene, world);
       if (hit) {
         selectObject(hit.id);
@@ -118,7 +148,15 @@ export function SceneViewPanel() {
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (!dragState.active || !dragState.objectId || editorMode !== 'edit') return;
+      if (editorMode !== 'edit') return;
+
+      if (paintState.active && paintState.objectId) {
+        const world = getWorldPoint(event.clientX, event.clientY);
+        tryPaintSelectedTilemap(world, paintState.erase);
+        return;
+      }
+
+      if (!dragState.active || !dragState.objectId) return;
       const activeScene = getActiveScene();
       if (!activeScene) return;
       const obj = findObjectById(activeScene, dragState.objectId);
@@ -133,6 +171,14 @@ export function SceneViewPanel() {
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      if (paintState.active) {
+        paintState.active = false;
+        paintState.objectId = null;
+        markSceneChanged();
+        container.releasePointerCapture(event.pointerId);
+        return;
+      }
+
       if (dragState.active) {
         dragState.active = false;
         dragState.objectId = null;
@@ -141,10 +187,17 @@ export function SceneViewPanel() {
       }
     };
 
+    const onContextMenu = (event: Event) => {
+      if (editorMode === 'edit' && getSelectedObject()?.getComponent(TilemapRenderer)) {
+        event.preventDefault();
+      }
+    };
+
     container.addEventListener('pointerdown', onPointerDown);
     container.addEventListener('pointermove', onPointerMove);
     container.addEventListener('pointerup', onPointerUp);
     container.addEventListener('pointerleave', onPointerUp);
+    container.addEventListener('contextmenu', onContextMenu);
 
     return () => {
       observer.disconnect();
@@ -153,6 +206,7 @@ export function SceneViewPanel() {
       container.removeEventListener('pointermove', onPointerMove);
       container.removeEventListener('pointerup', onPointerUp);
       container.removeEventListener('pointerleave', onPointerUp);
+      container.removeEventListener('contextmenu', onContextMenu);
     };
   }, [
     getActiveScene,
@@ -161,6 +215,7 @@ export function SceneViewPanel() {
     selectedId,
     selectObject,
     markSceneChanged,
+    paintTileAtWorld,
   ]);
 
   return (

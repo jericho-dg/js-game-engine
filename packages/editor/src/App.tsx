@@ -12,6 +12,7 @@ import { ProjectPanel } from './panels/ProjectPanel';
 import { ScriptEditorPanel } from './panels/ScriptEditorPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
 import { NewScriptDialog } from './components/NewScriptDialog';
+import { SavePrefabDialog } from './components/SavePrefabDialog';
 import { Input } from '@js-game-engine/engine';
 import { useSceneStore } from './stores/sceneStore';
 
@@ -73,6 +74,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col">
       <NewScriptDialog />
+      <SavePrefabDialog />
       <Toolbar />
 
       <PanelGroup direction="vertical" className="min-h-0 flex-1">

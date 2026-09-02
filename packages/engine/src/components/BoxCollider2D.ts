@@ -3,6 +3,7 @@ import { Component } from '../core/Component';
 import type { Bounds } from '../physics/Collision2D';
 
 export class BoxCollider2D extends Component {
+  static override readonly editorDisplayName = 'Box Collider 2D';
   width = 1;
   height = 1;
   offset = Vector2.zero();
