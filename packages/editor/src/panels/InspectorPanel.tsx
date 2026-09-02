@@ -7,8 +7,10 @@ import {
   TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
+  type Component,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
+import { AddComponentMenu } from '../components/AddComponentMenu';
 import { useAssetStore } from '../stores/assetStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { getSelectedObject, useSceneStore } from '../stores/sceneStore';
@@ -19,17 +21,16 @@ const DEG_TO_RAD = Math.PI / 180;
 export function InspectorPanel() {
   const selectedId = useSceneStore((s) => s.selectedId);
   const editorMode = useSceneStore((s) => s.editorMode);
-  const addScriptComponent = useSceneStore((s) => s.addScriptComponent);
-  const addBoxCollider2D = useSceneStore((s) => s.addBoxCollider2D);
-  const addRigidbody2D = useSceneStore((s) => s.addRigidbody2D);
-  const removeScriptComponent = useSceneStore((s) => s.removeScriptComponent);
-  const removeBoxCollider2D = useSceneStore((s) => s.removeBoxCollider2D);
-  const removeRigidbody2D = useSceneStore((s) => s.removeRigidbody2D);
-  const addTilemapRenderer = useSceneStore((s) => s.addTilemapRenderer);
+  const removeComponent = useSceneStore((s) => s.removeComponent);
   const tilePaintIndex = useSceneStore((s) => s.tilePaintIndex);
   const setTilePaintIndex = useSceneStore((s) => s.setTilePaintIndex);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
+
+  const makeRemoveHandler = (component: Component) => {
+    if (editorMode !== 'edit' || !selected || !component.removable) return undefined;
+    return () => removeComponent(selected.id, component);
+  };
 
   if (!selected) {
     return (
@@ -98,7 +99,10 @@ export function InspectorPanel() {
         </ComponentSection>
 
         {selected.getComponent(Camera2D) && (
-          <ComponentSection title="Camera 2D">
+          <ComponentSection
+            title="Camera 2D"
+            onRemove={makeRemoveHandler(selected.getComponent(Camera2D)!)}
+          >
             <ReadonlyField label="Background" value="#1a1a2e" />
             <NumberField
               key={`${selected.id}-zoom`}
@@ -113,7 +117,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(SpriteRenderer) && (
-          <ComponentSection title="Sprite Renderer">
+          <ComponentSection
+            title="Sprite Renderer"
+            onRemove={makeRemoveHandler(selected.getComponent(SpriteRenderer)!)}
+          >
             <SpriteAssetField objectId={selected.id} sprite={selected.getComponent(SpriteRenderer)!} />
             <NumberField
               key={`${selected.id}-width`}
@@ -143,7 +150,10 @@ export function InspectorPanel() {
         )}
 
         {selected.getComponent(Rotator) && (
-          <ComponentSection title="Rotator">
+          <ComponentSection
+            title="Rotator"
+            onRemove={makeRemoveHandler(selected.getComponent(Rotator)!)}
+          >
             <NumberField
               key={`${selected.id}-speed`}
               label="Speed"
@@ -156,32 +166,22 @@ export function InspectorPanel() {
           </ComponentSection>
         )}
 
-        {selected.getComponent(ScriptComponent) ? (
+        {selected.getComponent(ScriptComponent) && (
           <ComponentSection
             title="Script"
-            onRemove={editorMode === 'edit' ? () => removeScriptComponent(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(ScriptComponent)!)}
           >
             <ScriptAssetField
               objectId={selected.id}
               script={selected.getComponent(ScriptComponent)!}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addScriptComponent(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Script Component
-            </button>
-          )
         )}
 
-        {selected.getComponent(BoxCollider2D) ? (
+        {selected.getComponent(BoxCollider2D) && (
           <ComponentSection
             title="Box Collider 2D"
-            onRemove={editorMode === 'edit' ? () => removeBoxCollider2D(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(BoxCollider2D)!)}
           >
             <NumberField
               key={`${selected.id}-col-w`}
@@ -223,20 +223,13 @@ export function InspectorPanel() {
               }}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addBoxCollider2D(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Box Collider 2D
-            </button>
-          )
         )}
 
-        {selected.getComponent(TilemapRenderer) ? (
-          <ComponentSection title="Tilemap Renderer">
+        {selected.getComponent(TilemapRenderer) && (
+          <ComponentSection
+            title="Tilemap Renderer"
+            onRemove={makeRemoveHandler(selected.getComponent(TilemapRenderer)!)}
+          >
             <TilesetAssetField
               objectId={selected.id}
               tilemap={selected.getComponent(TilemapRenderer)!}
@@ -295,22 +288,12 @@ export function InspectorPanel() {
               Click in the Scene view to paint tiles. Right-click to erase.
             </p>
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addTilemapRenderer(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Tilemap
-            </button>
-          )
         )}
 
-        {selected.getComponent(Rigidbody2D) ? (
+        {selected.getComponent(Rigidbody2D) && (
           <ComponentSection
             title="Rigidbody 2D"
-            onRemove={editorMode === 'edit' ? () => removeRigidbody2D(selected.id) : undefined}
+            onRemove={makeRemoveHandler(selected.getComponent(Rigidbody2D)!)}
           >
             <NumberField
               key={`${selected.id}-rb-vx`}
@@ -345,17 +328,9 @@ export function InspectorPanel() {
               }}
             />
           </ComponentSection>
-        ) : (
-          editorMode === 'edit' && (
-            <button
-              type="button"
-              onClick={() => addRigidbody2D(selected.id)}
-              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
-            >
-              Add Rigidbody 2D
-            </button>
-          )
         )}
+
+        {editorMode === 'edit' && <AddComponentMenu object={selected} />}
       </div>
     </Panel>
   );

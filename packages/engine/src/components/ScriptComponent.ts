@@ -19,6 +19,8 @@ function runBehaviourMethod(
 }
 
 export class ScriptComponent extends Component {
+  static override readonly editorDisplayName = 'Script';
+
   scriptAssetId: string | null = null;
   private behaviour: Behaviour | null = null;
   runtimeScriptName = 'Script';

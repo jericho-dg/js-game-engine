@@ -3,6 +3,12 @@ import { Component } from './Component';
 import type { GameObject } from './GameObject';
 
 export class Transform extends Component {
+  static override readonly editorDisplayName = 'Transform';
+
+  override get removable(): boolean {
+    return false;
+  }
+
   localPosition = Vector2.zero();
   localRotation = 0;
   localScale = Vector2.one();

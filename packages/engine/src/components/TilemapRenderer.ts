@@ -1,6 +1,7 @@
 import { Component } from '../core/Component';
 
 export class TilemapRenderer extends Component {
+  static override readonly editorDisplayName = 'Tilemap Renderer';
   /** Hydrated from tilesetAssetId at runtime. */
   image: CanvasImageSource | null = null;
   tilesetAssetId: string | null = null;

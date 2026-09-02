@@ -11,7 +11,7 @@ import {
   SpriteRenderer,
   TilemapRenderer,
   BoxCollider2D,
-  Rigidbody2D,
+  type Component,
   deserializeScene,
   serializeScene,
   serializeGameObject,
@@ -47,16 +47,11 @@ interface SceneState {
   deleteSelected: () => void;
   createEmptyObject: () => void;
   createTilemapObject: () => void;
-  addTilemapRenderer: (objectId: string) => void;
+  addComponent: (objectId: string, componentClass: new () => Component) => void;
+  removeComponent: (objectId: string, component: Component) => void;
   assignSpriteAsset: (objectId: string, assetId: string | null) => void;
   assignTilesetAsset: (objectId: string, assetId: string | null) => void;
   assignScriptAsset: (objectId: string, scriptId: string | null) => void;
-  addScriptComponent: (objectId: string) => void;
-  addBoxCollider2D: (objectId: string) => void;
-  addRigidbody2D: (objectId: string) => void;
-  removeScriptComponent: (objectId: string) => void;
-  removeBoxCollider2D: (objectId: string) => void;
-  removeRigidbody2D: (objectId: string) => void;
   saveSelectionAsPrefab: (name: string) => boolean;
   instantiatePrefab: (prefabId: string) => void;
   tilePaintIndex: number;
@@ -212,13 +207,47 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     get().markSceneChanged();
   },
 
-  addTilemapRenderer: (objectId) => {
+  addComponent: (objectId, componentClass) => {
     const { scene, editorMode } = get();
     if (editorMode === 'play' || !scene) return;
+
     const obj = findObjectById(scene, objectId);
-    if (!obj || obj.getComponent(TilemapRenderer)) return;
-    const tilemap = obj.addComponent(new TilemapRenderer());
-    tilemap.ensureTileBuffer();
+    if (!obj || obj.getComponent(componentClass)) return;
+
+    const component = obj.addComponent(new componentClass());
+
+    if (component instanceof SpriteRenderer) {
+      component.color = Color.fromHex('#ab47bc');
+      component.width = 32;
+      component.height = 32;
+    }
+
+    if (component instanceof BoxCollider2D) {
+      const sprite = obj.getComponent(SpriteRenderer);
+      if (sprite) {
+        component.width = sprite.width;
+        component.height = sprite.height;
+      }
+    }
+
+    if (component instanceof TilemapRenderer) {
+      component.mapWidth = 20;
+      component.mapHeight = 12;
+      component.ensureTileBuffer();
+    }
+
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    get().markSceneChanged();
+  },
+
+  removeComponent: (objectId, component) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    const obj = findObjectById(scene, objectId);
+    if (!obj || component.gameObject !== obj) return;
+    if (!component.remove()) return;
+
     set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
     get().markSceneChanged();
   },
@@ -275,65 +304,6 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       scriptComponent = obj.addComponent(new ScriptComponent());
     }
     scriptComponent.scriptAssetId = scriptId;
-    get().markSceneChanged();
-  },
-
-  addScriptComponent: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj || obj.getComponent(ScriptComponent)) return;
-    obj.addComponent(new ScriptComponent());
-    get().markSceneChanged();
-  },
-
-  addBoxCollider2D: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj || obj.getComponent(BoxCollider2D)) return;
-    const collider = obj.addComponent(new BoxCollider2D());
-    const sprite = obj.getComponent(SpriteRenderer);
-    if (sprite) {
-      collider.width = sprite.width;
-      collider.height = sprite.height;
-    }
-    get().markSceneChanged();
-  },
-
-  addRigidbody2D: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj || obj.getComponent(Rigidbody2D)) return;
-    obj.addComponent(new Rigidbody2D());
-    get().markSceneChanged();
-  },
-
-  removeScriptComponent: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj?.removeComponent(ScriptComponent)) return;
-    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
-    get().markSceneChanged();
-  },
-
-  removeBoxCollider2D: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj?.removeComponent(BoxCollider2D)) return;
-    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
-    get().markSceneChanged();
-  },
-
-  removeRigidbody2D: (objectId) => {
-    const { scene, editorMode } = get();
-    if (editorMode === 'play' || !scene) return;
-    const obj = findObjectById(scene, objectId);
-    if (!obj?.removeComponent(Rigidbody2D)) return;
-    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
     get().markSceneChanged();
   },
 
