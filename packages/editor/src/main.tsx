@@ -8,6 +8,7 @@ import { isCompileTimeoutError, withCompileTimeout } from './scripting/compileTi
 import { useConsoleStore } from './stores/consoleStore';
 import { useSceneStore } from './stores/sceneStore';
 import { useScriptStore } from './stores/scriptStore';
+import { usePrefabStore } from './stores/prefabStore';
 
 async function bootstrap() {
   const root = createRoot(document.getElementById('root')!);
@@ -17,9 +18,10 @@ async function bootstrap() {
     </StrictMode>,
   );
 
-  const { projectId, projectName, scene, scripts } =
+  const { projectId, projectName, scene, scripts, prefabs } =
     await projectService.loadOrCreateDefault();
   useScriptStore.getState().setScripts(scripts);
+  usePrefabStore.getState().setPrefabs(prefabs ?? []);
   useSceneStore.getState().initProject(projectId, projectName, scene);
 
   if (scripts.length > 0) {

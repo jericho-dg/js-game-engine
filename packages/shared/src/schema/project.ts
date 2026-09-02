@@ -56,7 +56,24 @@ export type SerializedComponent =
       velocity: SerializedVector2;
       gravityScale: number;
       isKinematic: boolean;
+    }
+  | {
+      type: 'TilemapRenderer';
+      enabled: boolean;
+      tilesetAssetId: string | null;
+      tileWidth: number;
+      tileHeight: number;
+      mapWidth: number;
+      mapHeight: number;
+      tiles: number[];
+      sortingOrder: number;
     };
+
+export interface PrefabRecord {
+  id: string;
+  name: string;
+  root: SerializedGameObject;
+}
 
 export interface ScriptRecord {
   id: string;
@@ -83,6 +100,7 @@ export interface ProjectData {
   name: string;
   scene: SerializedScene;
   scripts: ScriptRecord[];
+  prefabs?: PrefabRecord[];
 }
 
 export interface AssetRecord {

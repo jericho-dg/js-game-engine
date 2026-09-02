@@ -1,30 +1,62 @@
-import { SpriteRenderer, type GameObject, type Scene } from '@js-game-engine/engine';
+import {
+  SpriteRenderer,
+  TilemapRenderer,
+  type GameObject,
+  type Scene,
+  type Transform,
+} from '@js-game-engine/engine';
 import { Vector2 } from '@js-game-engine/shared';
 
 export function hitTestScene(scene: Scene, worldPoint: Vector2): GameObject | null {
-  const sprites: Array<{ obj: GameObject; sprite: SpriteRenderer }> = [];
-  for (const root of scene.rootObjects) {
-    collectSprites(root, sprites);
-  }
-  sprites.sort((a, b) => b.sprite.sortingOrder - a.sprite.sortingOrder);
+  const hits: Array<{ obj: GameObject; sortingOrder: number }> = [];
 
-  for (const { obj, sprite } of sprites) {
-    if (pointInSprite(worldPoint, obj, sprite)) return obj;
+  for (const root of scene.rootObjects) {
+    collectHitTargets(root, hits);
+  }
+
+  hits.sort((a, b) => b.sortingOrder - a.sortingOrder);
+
+  for (const { obj } of hits) {
+    if (pointHitsObject(worldPoint, obj)) return obj;
   }
   return null;
 }
 
-function collectSprites(
+function collectHitTargets(
   obj: GameObject,
-  results: Array<{ obj: GameObject; sprite: SpriteRenderer }>,
+  results: Array<{ obj: GameObject; sortingOrder: number }>,
 ): void {
   if (!obj.active) return;
+
   for (const sprite of obj.getComponents(SpriteRenderer)) {
-    if (sprite.enabled) results.push({ obj, sprite });
+    if (sprite.enabled) {
+      results.push({ obj, sortingOrder: sprite.sortingOrder });
+    }
   }
+
+  for (const tilemap of obj.getComponents(TilemapRenderer)) {
+    if (tilemap.enabled) {
+      results.push({ obj, sortingOrder: tilemap.sortingOrder });
+    }
+  }
+
   for (const child of obj.children) {
-    collectSprites(child, results);
+    collectHitTargets(child, results);
   }
+}
+
+function pointHitsObject(worldPoint: Vector2, obj: GameObject): boolean {
+  const sprite = obj.getComponent(SpriteRenderer);
+  if (sprite?.enabled && pointInSprite(worldPoint, obj, sprite)) {
+    return true;
+  }
+
+  const tilemap = obj.getComponent(TilemapRenderer);
+  if (tilemap?.enabled && pointInTilemap(worldPoint, obj, tilemap)) {
+    return true;
+  }
+
+  return false;
 }
 
 function pointInSprite(
@@ -32,28 +64,57 @@ function pointInSprite(
   obj: GameObject,
   sprite: SpriteRenderer,
 ): boolean {
-  const transform = obj.transform;
-  const pos = transform.worldPosition;
-  const rot = -transform.worldRotation;
-  const scale = transform.worldScale;
-
-  const dx = worldPoint.x - pos.x;
-  const dy = worldPoint.y - pos.y;
-  const cos = Math.cos(rot);
-  const sin = Math.sin(rot);
-  const localX = (dx * cos - dy * sin) / (scale.x || 1);
-  const localY = (dx * sin + dy * cos) / (scale.y || 1);
-
+  const local = worldToLocal(obj.transform, worldPoint.x, worldPoint.y);
   const width = sprite.width;
   const height = sprite.height;
   const pivotX = sprite.pivot.x * width;
   const pivotY = sprite.pivot.y * height;
 
   return (
-    localX >= -pivotX &&
-    localX <= width - pivotX &&
-    localY >= -pivotY &&
-    localY <= height - pivotY
+    local.x >= -pivotX &&
+    local.x <= width - pivotX &&
+    local.y >= -pivotY &&
+    local.y <= height - pivotY
+  );
+}
+
+function pointInTilemap(
+  worldPoint: Vector2,
+  obj: GameObject,
+  tilemap: TilemapRenderer,
+): boolean {
+  const local = worldToLocal(obj.transform, worldPoint.x, worldPoint.y);
+  const bounds = tilemap.getMapLocalBounds();
+  return (
+    local.x >= 0 &&
+    local.y >= 0 &&
+    local.x < bounds.width &&
+    local.y < bounds.height
+  );
+}
+
+export function worldToLocalPoint(
+  transform: Transform,
+  worldPoint: Vector2,
+): Vector2 {
+  return worldToLocal(transform, worldPoint.x, worldPoint.y);
+}
+
+function worldToLocal(
+  transform: Transform,
+  worldX: number,
+  worldY: number,
+): Vector2 {
+  const pos = transform.worldPosition;
+  const rot = -transform.worldRotation;
+  const scale = transform.worldScale;
+  const dx = worldX - pos.x;
+  const dy = worldY - pos.y;
+  const cos = Math.cos(rot);
+  const sin = Math.sin(rot);
+  return new Vector2(
+    (dx * cos - dy * sin) / (scale.x || 1),
+    (dx * sin + dy * cos) / (scale.y || 1),
   );
 }
 

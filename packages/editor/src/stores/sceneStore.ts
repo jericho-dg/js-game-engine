@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Vector2 } from '@js-game-engine/shared';
 import {
   Camera2D,
   Color,
@@ -8,14 +9,19 @@ import {
   Scene,
   ScriptComponent,
   SpriteRenderer,
+  TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
   deserializeScene,
   serializeScene,
+  serializeGameObject,
+  instantiatePrefabRoot,
 } from '@js-game-engine/engine';
-import { projectService, hydrateSceneSprites } from '../services/ProjectService';
+import { projectService, hydrateSceneAssets } from '../services/ProjectService';
+import { worldToLocalPoint } from '../gizmos/hitTest';
 import { attachScriptsToScene, detachScriptsFromScene } from '../scripting/ScriptRuntime';
 import { getPlayBlockers } from '../scripting/validateScripts';
+import { usePrefabStore } from './prefabStore';
 import { useAssetStore } from './assetStore';
 import { useConsoleStore } from './consoleStore';
 import { useScriptStore } from './scriptStore';
@@ -40,7 +46,10 @@ interface SceneState {
   getActiveScene: () => Scene | null;
   deleteSelected: () => void;
   createEmptyObject: () => void;
+  createTilemapObject: () => void;
+  addTilemapRenderer: (objectId: string) => void;
   assignSpriteAsset: (objectId: string, assetId: string | null) => void;
+  assignTilesetAsset: (objectId: string, assetId: string | null) => void;
   assignScriptAsset: (objectId: string, scriptId: string | null) => void;
   addScriptComponent: (objectId: string) => void;
   addBoxCollider2D: (objectId: string) => void;
@@ -48,6 +57,11 @@ interface SceneState {
   removeScriptComponent: (objectId: string) => void;
   removeBoxCollider2D: (objectId: string) => void;
   removeRigidbody2D: (objectId: string) => void;
+  saveSelectionAsPrefab: (name: string) => boolean;
+  instantiatePrefab: (prefabId: string) => void;
+  tilePaintIndex: number;
+  setTilePaintIndex: (index: number) => void;
+  paintTileAtWorld: (objectId: string, worldX: number, worldY: number, erase?: boolean) => void;
   resetProject: () => Promise<void>;
 }
 
@@ -60,6 +74,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   sceneRevision: 0,
   editorMode: 'edit',
   isLoaded: false,
+  tilePaintIndex: 0,
 
   selectObject: (id) => set({ selectedId: id }),
 
@@ -119,7 +134,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     const snapshot = serializeScene(scene);
     const playScene = deserializeScene(snapshot);
-    hydrateSceneSprites(playScene);
+    hydrateSceneAssets(playScene);
 
     Debug.setLogCallback((level, message) => {
       useConsoleStore.getState().log(level, message);
@@ -182,6 +197,49 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     sprite.width = 32;
     sprite.height = 32;
     set({ selectedId: obj.id });
+    get().markSceneChanged();
+  },
+
+  createTilemapObject: () => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = scene.createGameObject('Tilemap');
+    const tilemap = obj.addComponent(new TilemapRenderer());
+    tilemap.mapWidth = 20;
+    tilemap.mapHeight = 12;
+    tilemap.ensureTileBuffer();
+    set({ selectedId: obj.id });
+    get().markSceneChanged();
+  },
+
+  addTilemapRenderer: (objectId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj || obj.getComponent(TilemapRenderer)) return;
+    const tilemap = obj.addComponent(new TilemapRenderer());
+    tilemap.ensureTileBuffer();
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    get().markSceneChanged();
+  },
+
+  assignTilesetAsset: (objectId, assetId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+    const obj = findObjectById(scene, objectId);
+    if (!obj) return;
+    const tilemap = obj.getComponent(TilemapRenderer);
+    if (!tilemap) return;
+
+    tilemap.tilesetAssetId = assetId;
+    if (assetId) {
+      const image = useAssetStore.getState().getImage(assetId);
+      if (image) {
+        tilemap.image = image;
+      }
+    } else {
+      tilemap.image = null;
+    }
     get().markSceneChanged();
   },
 
@@ -279,6 +337,56 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     get().markSceneChanged();
   },
 
+  saveSelectionAsPrefab: (name) => {
+    const { scene, selectedId, editorMode } = get();
+    if (editorMode === 'play' || !scene || !selectedId) return false;
+
+    const obj = findObjectById(scene, selectedId);
+    if (!obj) return false;
+
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+
+    usePrefabStore.getState().addPrefab({
+      id: crypto.randomUUID(),
+      name: trimmed,
+      root: serializeGameObject(obj),
+    });
+    get().markSceneChanged();
+    return true;
+  },
+
+  instantiatePrefab: (prefabId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    const prefab = usePrefabStore.getState().getPrefab(prefabId);
+    if (!prefab) return;
+
+    const instance = instantiatePrefabRoot(scene, prefab.root);
+    set({ selectedId: instance.id });
+    get().markSceneChanged();
+  },
+
+  setTilePaintIndex: (index) => set({ tilePaintIndex: Math.max(0, index) }),
+
+  paintTileAtWorld: (objectId, worldX, worldY, erase = false) => {
+    const { scene, editorMode, tilePaintIndex } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    const obj = findObjectById(scene, objectId);
+    const tilemap = obj?.getComponent(TilemapRenderer);
+    if (!obj || !tilemap) return;
+
+    const local = worldToLocalPoint(obj.transform, new Vector2(worldX, worldY));
+    const cell = tilemap.localToCell(local.x, local.y);
+    if (!cell) return;
+
+    tilemap.setTile(cell.column, cell.row, erase ? -1 : tilePaintIndex);
+    set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    get().markSceneChanged();
+  },
+
   resetProject: async () => {
     const { projectId, editorMode } = get();
     if (!projectId) return;
@@ -289,6 +397,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     const result = await projectService.resetToDemo(projectId);
     useScriptStore.getState().setScripts(result.scripts);
+    usePrefabStore.getState().setPrefabs(result.prefabs ?? []);
     await useScriptStore.getState().compileAllSavedScripts();
     useConsoleStore.getState().clear();
 

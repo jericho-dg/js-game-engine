@@ -10,6 +10,7 @@ import { Rotator } from '../components/Rotator';
 import { SpriteRenderer } from '../components/SpriteRenderer';
 import { BoxCollider2D } from '../components/BoxCollider2D';
 import { Rigidbody2D } from '../components/Rigidbody2D';
+import { TilemapRenderer } from '../components/TilemapRenderer';
 import { GameObject } from '../core/GameObject';
 import { Scene } from '../core/Scene';
 
@@ -20,7 +21,7 @@ function colorToHex(color: Color): string {
   return `#${r}${g}${b}`;
 }
 
-function serializeGameObject(obj: GameObject): SerializedGameObject {
+export function serializeGameObject(obj: GameObject): SerializedGameObject {
   const components: SerializedComponent[] = [];
 
   for (const component of obj.getComponents(Camera2D)) {
@@ -46,6 +47,21 @@ function serializeGameObject(obj: GameObject): SerializedGameObject {
       flipY: component.flipY,
       sortingOrder: component.sortingOrder,
       pivot: { x: component.pivot.x, y: component.pivot.y },
+    });
+  }
+
+  for (const component of obj.getComponents(TilemapRenderer)) {
+    component.ensureTileBuffer();
+    components.push({
+      type: 'TilemapRenderer',
+      enabled: component.enabled,
+      tilesetAssetId: component.tilesetAssetId,
+      tileWidth: component.tileWidth,
+      tileHeight: component.tileHeight,
+      mapWidth: component.mapWidth,
+      mapHeight: component.mapHeight,
+      tiles: [...component.tiles],
+      sortingOrder: component.sortingOrder,
     });
   }
 
@@ -133,6 +149,17 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
       sprite.flipY = data.flipY;
       sprite.sortingOrder = data.sortingOrder;
       sprite.pivot.set(data.pivot.x, data.pivot.y);
+    } else if (data.type === 'TilemapRenderer') {
+      const tilemap = obj.addComponent(new TilemapRenderer());
+      tilemap.enabled = data.enabled;
+      tilemap.tilesetAssetId = data.tilesetAssetId;
+      tilemap.tileWidth = data.tileWidth;
+      tilemap.tileHeight = data.tileHeight;
+      tilemap.mapWidth = data.mapWidth;
+      tilemap.mapHeight = data.mapHeight;
+      tilemap.tiles = [...data.tiles];
+      tilemap.sortingOrder = data.sortingOrder;
+      tilemap.ensureTileBuffer();
     } else if (data.type === 'Rotator') {
       const rotator = obj.addComponent(new Rotator());
       rotator.enabled = data.enabled;
@@ -158,7 +185,7 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
   }
 }
 
-function deserializeGameObject(
+export function instantiateSerializedGameObject(
   scene: Scene,
   data: SerializedGameObject,
   parent: GameObject | null,
@@ -185,10 +212,18 @@ function deserializeGameObject(
   applyComponents(obj, data.components);
 
   for (const child of data.children) {
-    deserializeGameObject(scene, child, obj);
+    instantiateSerializedGameObject(scene, child, obj);
   }
 
   return obj;
+}
+
+function deserializeGameObject(
+  scene: Scene,
+  data: SerializedGameObject,
+  parent: GameObject | null,
+): GameObject {
+  return instantiateSerializedGameObject(scene, data, parent);
 }
 
 export function deserializeScene(data: SerializedScene): Scene {

@@ -9,6 +9,7 @@ export function HierarchyPanel() {
   const sceneRevision = useSceneStore((s) => s.sceneRevision);
   const selectObject = useSceneStore((s) => s.selectObject);
   const createEmptyObject = useSceneStore((s) => s.createEmptyObject);
+  const createTilemapObject = useSceneStore((s) => s.createTilemapObject);
   const deleteSelected = useSceneStore((s) => s.deleteSelected);
 
   if (!scene) return null;
@@ -26,7 +27,13 @@ export function HierarchyPanel() {
         </button>
         <button
           type="button"
-          title="Delete selected"
+          title="Create tilemap"
+          onClick={createTilemapObject}
+          className="rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+        >
+          Tilemap
+        </button>
+        <button
           onClick={deleteSelected}
           className="rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
         >

@@ -4,6 +4,7 @@ import {
   Rotator,
   ScriptComponent,
   SpriteRenderer,
+  TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
 } from '@js-game-engine/engine';
@@ -24,6 +25,9 @@ export function InspectorPanel() {
   const removeScriptComponent = useSceneStore((s) => s.removeScriptComponent);
   const removeBoxCollider2D = useSceneStore((s) => s.removeBoxCollider2D);
   const removeRigidbody2D = useSceneStore((s) => s.removeRigidbody2D);
+  const addTilemapRenderer = useSceneStore((s) => s.addTilemapRenderer);
+  const tilePaintIndex = useSceneStore((s) => s.tilePaintIndex);
+  const setTilePaintIndex = useSceneStore((s) => s.setTilePaintIndex);
   useSceneStore((s) => s.sceneRevision);
   const selected = selectedId ? getSelectedObject() : null;
 
@@ -231,6 +235,78 @@ export function InspectorPanel() {
           )
         )}
 
+        {selected.getComponent(TilemapRenderer) ? (
+          <ComponentSection title="Tilemap Renderer">
+            <TilesetAssetField
+              objectId={selected.id}
+              tilemap={selected.getComponent(TilemapRenderer)!}
+            />
+            <NumberField
+              key={`${selected.id}-tile-w`}
+              label="Tile Width"
+              value={selected.getComponent(TilemapRenderer)!.tileWidth}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.tileWidth = Math.max(1, v);
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-tile-h`}
+              label="Tile Height"
+              value={selected.getComponent(TilemapRenderer)!.tileHeight}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.tileHeight = Math.max(1, v);
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-map-w`}
+              label="Map Width"
+              value={selected.getComponent(TilemapRenderer)!.mapWidth}
+              onChange={(v) => {
+                const tilemap = selected.getComponent(TilemapRenderer)!;
+                tilemap.mapWidth = Math.max(1, Math.floor(v));
+                tilemap.ensureTileBuffer();
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-map-h`}
+              label="Map Height"
+              value={selected.getComponent(TilemapRenderer)!.mapHeight}
+              onChange={(v) => {
+                const tilemap = selected.getComponent(TilemapRenderer)!;
+                tilemap.mapHeight = Math.max(1, Math.floor(v));
+                tilemap.ensureTileBuffer();
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-tile-sort`}
+              label="Sorting Order"
+              value={selected.getComponent(TilemapRenderer)!.sortingOrder}
+              onChange={(v) => {
+                selected.getComponent(TilemapRenderer)!.sortingOrder = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-paint-index`}
+              label="Paint Tile Index"
+              value={tilePaintIndex}
+              onChange={(v) => setTilePaintIndex(Math.max(0, Math.floor(v)))}
+            />
+            <p className="text-[10px] text-[#858585]">
+              Click in the Scene view to paint tiles. Right-click to erase.
+            </p>
+          </ComponentSection>
+        ) : (
+          editorMode === 'edit' && (
+            <button
+              type="button"
+              onClick={() => addTilemapRenderer(selected.id)}
+              className="w-full rounded border border-[#3c3c3c] px-2 py-1 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              Add Tilemap
+            </button>
+          )
+        )}
+
         {selected.getComponent(Rigidbody2D) ? (
           <ComponentSection
             title="Rigidbody 2D"
@@ -355,6 +431,35 @@ function TextField({
         }}
         className="w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-1 text-sm text-[#cccccc] outline-none focus:border-[#007acc]"
       />
+    </div>
+  );
+}
+
+function TilesetAssetField({
+  objectId,
+  tilemap,
+}: {
+  objectId: string;
+  tilemap: TilemapRenderer;
+}) {
+  const assets = useAssetStore((s) => s.assets);
+  const assignTilesetAsset = useSceneStore((s) => s.assignTilesetAsset);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label className="text-xs text-[#858585]">Tileset</label>
+      <select
+        value={tilemap.tilesetAssetId ?? ''}
+        onChange={(e) => assignTilesetAsset(objectId, e.target.value || null)}
+        className="max-w-36 rounded border border-[#3c3c3c] bg-[#1e1e1e] px-2 py-0.5 text-xs text-[#cccccc] outline-none focus:border-[#007acc]"
+      >
+        <option value="">None (colored tiles)</option>
+        {assets.map((asset) => (
+          <option key={asset.id} value={asset.id}>
+            {asset.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

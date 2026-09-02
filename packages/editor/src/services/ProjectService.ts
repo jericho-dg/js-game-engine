@@ -10,6 +10,7 @@ import {
   Scene,
   ScriptComponent,
   SpriteRenderer,
+  TilemapRenderer,
   BoxCollider2D,
   Rigidbody2D,
   deserializeScene,
@@ -18,6 +19,7 @@ import {
 } from '@js-game-engine/engine';
 import { db } from './db';
 import { useAssetStore } from '../stores/assetStore';
+import { usePrefabStore } from '../stores/prefabStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
@@ -120,6 +122,7 @@ function createDefaultProjectData(): ProjectData {
     name: 'Untitled Project',
     scene: serializeScene(scene),
     scripts: [playerScript],
+    prefabs: [],
   };
 }
 
@@ -131,6 +134,7 @@ export class ProjectService {
     projectName: string;
     scene: Scene;
     scripts: ScriptRecord[];
+    prefabs: import('@js-game-engine/shared').PrefabRecord[];
   }> {
     let stored = await db.projects.get(DEFAULT_PROJECT_ID);
 
@@ -150,23 +154,29 @@ export class ProjectService {
     await useAssetStore.getState().loadForProject(stored.id);
     const scene = deserializeScene(stored.data.scene);
     scripts = migrateLoadedProject(scene, scripts);
-    hydrateSceneSprites(scene);
+    hydrateSceneAssets(scene);
+
+    const prefabs = stored.data.prefabs ?? [];
+    usePrefabStore.getState().setPrefabs(prefabs);
 
     return {
       projectId: stored.id,
       projectName: stored.name,
       scene,
       scripts,
+      prefabs,
     };
   }
 
   async save(scene: Scene, projectId: string, projectName: string): Promise<void> {
     const scripts = useScriptStore.getState().scripts;
+    const prefabs = usePrefabStore.getState().prefabs;
     const data: ProjectData = {
       version: PROJECT_VERSION,
       name: projectName,
       scene: serializeScene(scene),
       scripts,
+      prefabs,
     };
 
     await db.projects.put({
@@ -189,6 +199,7 @@ export class ProjectService {
     projectName: string;
     scene: Scene;
     scripts: ScriptRecord[];
+    prefabs: import('@js-game-engine/shared').PrefabRecord[];
   }> {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
@@ -207,13 +218,15 @@ export class ProjectService {
     });
 
     const scene = deserializeScene(data.scene);
-    hydrateSceneSprites(scene);
+    hydrateSceneAssets(scene);
+    usePrefabStore.getState().setPrefabs(data.prefabs ?? []);
 
     return {
       projectId,
       projectName: data.name,
       scene,
       scripts: data.scripts,
+      prefabs: data.prefabs ?? [],
     };
   }
 
@@ -265,15 +278,20 @@ export class ProjectService {
 
 export const projectService = new ProjectService();
 
-export function hydrateSceneSprites(scene: Scene): void {
+export function hydrateSceneAssets(scene: Scene): void {
   const { getImage } = useAssetStore.getState();
   for (const root of scene.rootObjects) {
-    hydrateObjectSprites(root, getImage);
+    hydrateObjectAssets(root, getImage);
   }
 }
 
-function hydrateObjectSprites(
-  obj: import('@js-game-engine/engine').GameObject,
+/** @deprecated Use hydrateSceneAssets */
+export function hydrateSceneSprites(scene: Scene): void {
+  hydrateSceneAssets(scene);
+}
+
+function hydrateObjectAssets(
+  obj: GameObject,
   getImage: (id: string) => HTMLImageElement | undefined,
 ): void {
   for (const sprite of obj.getComponents(SpriteRenderer)) {
@@ -288,19 +306,36 @@ function hydrateObjectSprites(
       }
     }
   }
+
+  for (const tilemap of obj.getComponents(TilemapRenderer)) {
+    if (tilemap.tilesetAssetId) {
+      const image = getImage(tilemap.tilesetAssetId);
+      if (image) {
+        tilemap.image = image;
+      }
+    }
+    tilemap.ensureTileBuffer();
+  }
+
   for (const child of obj.children) {
-    hydrateObjectSprites(child, getImage);
+    hydrateObjectAssets(child, getImage);
   }
 }
 
 function clearAssetReferences(
-  obj: import('@js-game-engine/engine').GameObject,
+  obj: GameObject,
   assetId: string,
 ): void {
   for (const sprite of obj.getComponents(SpriteRenderer)) {
     if (sprite.spriteAssetId === assetId) {
       sprite.spriteAssetId = null;
       sprite.image = null;
+    }
+  }
+  for (const tilemap of obj.getComponents(TilemapRenderer)) {
+    if (tilemap.tilesetAssetId === assetId) {
+      tilemap.tilesetAssetId = null;
+      tilemap.image = null;
     }
   }
   for (const child of obj.children) {
