@@ -174,17 +174,17 @@ export function SceneViewPanel() {
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      if (dragState.active) {
-        dragState.active = false;
-        dragState.objectId = null;
+      if (paintState.active) {
+        paintState.active = false;
+        paintState.objectId = null;
         markSceneChanged();
         container.releasePointerCapture(event.pointerId);
         return;
       }
 
-      if (paintState.active) {
-        paintState.active = false;
-        paintState.objectId = null;
+      if (dragState.active) {
+        dragState.active = false;
+        dragState.objectId = null;
         markSceneChanged();
         container.releasePointerCapture(event.pointerId);
       }

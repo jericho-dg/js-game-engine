@@ -258,7 +258,6 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     const obj = findObjectById(scene, objectId);
     if (!obj || component.gameObject !== obj) return;
-
     get().beginSceneChange();
     if (!component.remove()) return;
 

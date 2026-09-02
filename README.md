@@ -6,7 +6,7 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 **Phase 6 — Export and Polish** in progress. Undo/redo and ZIP project export/import are available.
 
-**Phase 5 — Tilemaps and Prefabs** complete on the `cursor/phase-5-tilemaps-prefabs` branch.
+**Phase 5 — Tilemaps and Prefabs** complete. TilemapRenderer with tileset painting, prefab save/instantiate, and project persistence are included.
 
 Previous phases: physics/input, scripting, editor essentials, and engine core.
 
@@ -23,7 +23,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 
 ### Undo / Redo
 - **Undo** and **Redo** toolbar buttons, or **Ctrl+Z** / **Ctrl+Shift+Z**
-- Tracks scene, scripts, prefabs, and selection (debounced during rapid edits)
+- Tracks scene, scripts, prefabs, assets, and selection (debounced during rapid edits)
 
 ### Project export / import
 - **Export** downloads a `.jge.zip` archive (manifest + assets)
