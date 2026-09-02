@@ -9,6 +9,7 @@ import { useConsoleStore } from './stores/consoleStore';
 import { useSceneStore } from './stores/sceneStore';
 import { useScriptStore } from './stores/scriptStore';
 import { usePrefabStore } from './stores/prefabStore';
+import { useHistoryStore } from './stores/historyStore';
 
 async function bootstrap() {
   const root = createRoot(document.getElementById('root')!);
@@ -23,6 +24,7 @@ async function bootstrap() {
   useScriptStore.getState().setScripts(scripts);
   usePrefabStore.getState().setPrefabs(prefabs ?? []);
   useSceneStore.getState().initProject(projectId, projectName, scene);
+  useHistoryStore.getState().resetHistory();
 
   if (scripts.length > 0) {
     useScriptStore.getState().openScript(scripts[0].id);

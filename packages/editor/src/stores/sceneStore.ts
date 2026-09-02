@@ -25,6 +25,7 @@ import { usePrefabStore } from './prefabStore';
 import { useAssetStore } from './assetStore';
 import { useConsoleStore } from './consoleStore';
 import { useScriptStore } from './scriptStore';
+import { useHistoryStore } from './historyStore';
 
 export type EditorMode = 'edit' | 'play';
 
@@ -38,6 +39,7 @@ interface SceneState {
   editorMode: EditorMode;
   isLoaded: boolean;
   selectObject: (id: string | null) => void;
+  beginSceneChange: () => void;
   markSceneChanged: () => void;
   setScene: (scene: Scene) => void;
   initProject: (projectId: string, projectName: string, scene: Scene) => void;
@@ -73,10 +75,16 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
   selectObject: (id) => set({ selectedId: id }),
 
+  beginSceneChange: () => {
+    if (get().editorMode === 'play') return;
+    useHistoryStore.getState().beginChange();
+  },
+
   markSceneChanged: () => {
     const { scene, projectId, projectName, editorMode } = get();
     if (editorMode === 'play') return;
     set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
+    useHistoryStore.getState().scheduleSnapshot();
     if (scene && projectId) {
       projectService.scheduleAutoSave(scene, projectId, projectName);
     }
@@ -175,6 +183,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   deleteSelected: () => {
     const { scene, selectedId, editorMode } = get();
     if (editorMode === 'play' || !scene || !selectedId) return;
+    get().beginSceneChange();
     const obj = findObjectById(scene, selectedId);
     if (!obj) return;
     obj.destroy();
@@ -186,6 +195,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   createEmptyObject: () => {
     const { scene, editorMode } = get();
     if (editorMode === 'play' || !scene) return;
+    get().beginSceneChange();
     const obj = scene.createGameObject('GameObject');
     const sprite = obj.addComponent(new SpriteRenderer());
     sprite.color = Color.fromHex('#ab47bc');
@@ -198,6 +208,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   createTilemapObject: () => {
     const { scene, editorMode } = get();
     if (editorMode === 'play' || !scene) return;
+    get().beginSceneChange();
     const obj = scene.createGameObject('Tilemap');
     const tilemap = obj.addComponent(new TilemapRenderer());
     tilemap.mapWidth = 20;
@@ -214,6 +225,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const obj = findObjectById(scene, objectId);
     if (!obj || obj.getComponent(componentClass)) return;
 
+    get().beginSceneChange();
     const component = obj.addComponent(new componentClass());
 
     if (component instanceof SpriteRenderer) {
@@ -246,6 +258,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     const obj = findObjectById(scene, objectId);
     if (!obj || component.gameObject !== obj) return;
+
+    get().beginSceneChange();
     if (!component.remove()) return;
 
     set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
@@ -260,6 +274,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const tilemap = obj.getComponent(TilemapRenderer);
     if (!tilemap) return;
 
+    get().beginSceneChange();
     tilemap.tilesetAssetId = assetId;
     if (assetId) {
       const image = useAssetStore.getState().getImage(assetId);
@@ -280,6 +295,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const sprite = obj.getComponent(SpriteRenderer);
     if (!sprite) return;
 
+    get().beginSceneChange();
     sprite.spriteAssetId = assetId;
     if (assetId) {
       const image = useAssetStore.getState().getImage(assetId);
@@ -299,6 +315,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     if (editorMode === 'play' || !scene) return;
     const obj = findObjectById(scene, objectId);
     if (!obj) return;
+
+    get().beginSceneChange();
     let scriptComponent = obj.getComponent(ScriptComponent);
     if (!scriptComponent) {
       scriptComponent = obj.addComponent(new ScriptComponent());
@@ -317,6 +335,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const trimmed = name.trim();
     if (!trimmed) return false;
 
+    get().beginSceneChange();
     usePrefabStore.getState().addPrefab({
       id: crypto.randomUUID(),
       name: trimmed,
@@ -333,6 +352,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const prefab = usePrefabStore.getState().getPrefab(prefabId);
     if (!prefab) return;
 
+    get().beginSceneChange();
     const instance = instantiatePrefabRoot(scene, prefab.root);
     set({ selectedId: instance.id });
     get().markSceneChanged();
@@ -354,7 +374,6 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     tilemap.setTile(cell.column, cell.row, erase ? -1 : tilePaintIndex);
     set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
-    get().markSceneChanged();
   },
 
   resetProject: async () => {
@@ -379,6 +398,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       editorMode: 'edit',
       sceneRevision: get().sceneRevision + 1,
     });
+
+    useHistoryStore.getState().resetHistory();
 
     const firstScript = result.scripts[0];
     if (firstScript) {

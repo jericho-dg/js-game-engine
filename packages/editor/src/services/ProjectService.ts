@@ -194,6 +194,13 @@ export class ProjectService {
     }, 2000);
   }
 
+  cancelAutoSave(): void {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+  }
+
   async resetToDemo(projectId: string): Promise<{
     projectId: string;
     projectName: string;
@@ -261,17 +268,46 @@ export class ProjectService {
     return stored?.blob;
   }
 
+  async syncAssets(projectId: string, assets: import('../stores/assetStore').AssetSnapshot[]): Promise<void> {
+    const keepIds = new Set(assets.map((asset) => asset.id));
+    const existing = await db.assets.where('projectId').equals(projectId).toArray();
+
+    await Promise.all(
+      existing
+        .filter((entry) => !keepIds.has(entry.id))
+        .map((entry) => db.assets.delete(entry.id)),
+    );
+
+    await Promise.all(
+      assets.map((asset) =>
+        db.assets.put({
+          id: asset.id,
+          projectId: asset.projectId,
+          name: asset.name,
+          type: asset.type,
+          mimeType: asset.mimeType,
+          width: asset.width,
+          height: asset.height,
+          blob: asset.blob,
+        }),
+      ),
+    );
+  }
+
   async deleteAsset(assetId: string, scene: Scene | null): Promise<void> {
-    await db.assets.delete(assetId);
-    useAssetStore.getState().removeAsset(assetId);
+    useSceneStore.getState().beginSceneChange();
 
     if (scene) {
       clearSceneAssetReferences(scene, assetId);
-      const { markSceneChanged, projectId, projectName } = useSceneStore.getState();
-      markSceneChanged();
-      if (projectId) {
-        await this.save(scene, projectId, projectName);
-      }
+    }
+
+    await db.assets.delete(assetId);
+    useAssetStore.getState().removeAsset(assetId);
+
+    const { markSceneChanged, projectId, projectName } = useSceneStore.getState();
+    markSceneChanged();
+    if (scene && projectId) {
+      await this.save(scene, projectId, projectName);
     }
   }
 }

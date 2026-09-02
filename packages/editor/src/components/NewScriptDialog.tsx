@@ -8,6 +8,7 @@ export function NewScriptDialog() {
   const closeNewScriptDialog = useScriptStore((s) => s.closeNewScriptDialog);
   const createScript = useScriptStore((s) => s.createScript);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
+  const beginSceneChange = useSceneStore((s) => s.beginSceneChange);
   const [name, setName] = useState('NewScript');
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +29,7 @@ export function NewScriptDialog() {
       setError('Use letters, numbers, or underscore. Must start with a letter.');
       return;
     }
+    beginSceneChange();
     createScript(className);
     markSceneChanged();
     closeNewScriptDialog();

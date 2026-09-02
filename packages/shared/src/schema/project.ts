@@ -130,3 +130,19 @@ export interface StoredAsset {
   height: number;
   blob: Blob;
 }
+
+export interface ProjectExportAsset {
+  id: string;
+  name: string;
+  type: 'sprite';
+  mimeType: string;
+  width: number;
+  height: number;
+  file: string;
+}
+
+export interface ProjectExportManifest {
+  exportVersion: string;
+  project: ProjectData;
+  assets: ProjectExportAsset[];
+}
