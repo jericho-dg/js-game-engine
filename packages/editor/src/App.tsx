@@ -13,7 +13,11 @@ import { ScriptEditorPanel } from './panels/ScriptEditorPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
 import { NewScriptDialog } from './components/NewScriptDialog';
 import { SavePrefabDialog } from './components/SavePrefabDialog';
+import { EditorNewProjectDialog } from './components/NewProjectDialog';
+import { OpenProjectDialog } from './components/OpenProjectDialog';
+import { ProjectManagerScreen } from './screens/ProjectManagerScreen';
 import { Input } from '@js-game-engine/engine';
+import { useAppStore } from './stores/appStore';
 import { useSceneStore } from './stores/sceneStore';
 import { useHistoryStore } from './stores/historyStore';
 
@@ -30,6 +34,7 @@ function ResizeHandle({ direction }: { direction: 'horizontal' | 'vertical' }) {
 }
 
 export default function App() {
+  const view = useAppStore((s) => s.view);
   const isLoaded = useSceneStore((s) => s.isLoaded);
   const deleteSelected = useSceneStore((s) => s.deleteSelected);
   const editorMode = useSceneStore((s) => s.editorMode);
@@ -79,6 +84,10 @@ export default function App() {
     };
   }, [canRedo, canUndo, deleteSelected, editorMode, redo, undo]);
 
+  if (view === 'manager') {
+    return <ProjectManagerScreen />;
+  }
+
   if (!isLoaded) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-[#858585]">
@@ -91,6 +100,8 @@ export default function App() {
     <div className="flex h-full flex-col">
       <NewScriptDialog />
       <SavePrefabDialog />
+      <EditorNewProjectDialog />
+      <OpenProjectDialog />
       <Toolbar />
 
       <PanelGroup direction="vertical" className="min-h-0 flex-1">

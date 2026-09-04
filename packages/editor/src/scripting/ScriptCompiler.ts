@@ -8,6 +8,7 @@ import {
   Input,
   Rigidbody2D,
   AudioSource,
+  TextRenderer,
   Time,
   Vector2,
 } from '@js-game-engine/engine';
@@ -17,7 +18,7 @@ let esbuildReady: Promise<void> | null = null;
 let buildQueue: Promise<unknown> = Promise.resolve();
 const compileCache = new Map<string, new () => Behaviour>();
 /** Bump when ENGINE_SHIM changes so cached script classes are invalidated. */
-const COMPILE_VERSION = 3;
+const COMPILE_VERSION = 4;
 
 export function initScriptCompiler(): Promise<void> {
   if (!esbuildReady) {
@@ -40,6 +41,10 @@ export class Behaviour {
   bind(gameObject) {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
+  }
+  findGameObject(name) {
+    const scene = this.gameObject?.scene;
+    return scene ? scene.findByName(name) : null;
   }
   getRigidbody2D() {
     if (!this.gameObject) return null;
@@ -69,9 +74,10 @@ export class Collision2D {
     this.collider = collider;
   }
 }
-export class BoxCollider2D {}
-export class Rigidbody2D {}
-export class AudioSource {}
+export const BoxCollider2D = globalThis.__JGE__.BoxCollider2D;
+export const Rigidbody2D = globalThis.__JGE__.Rigidbody2D;
+export const AudioSource = globalThis.__JGE__.AudioSource;
+export const TextRenderer = globalThis.__JGE__.TextRenderer;
 export const Input = globalThis.__JGE__.Input;
 export const Time = globalThis.__JGE__.Time;
 export const Debug = globalThis.__JGE__.Debug;
@@ -96,7 +102,7 @@ export async function compileScript(source: string): Promise<string> {
     await initScriptCompiler();
 
     const wrappedSource = `
-import { Behaviour, Vector2, Input, Time, Debug } from 'engine-shim';
+import { Behaviour, Vector2, Input, Time, Debug, AudioSource, TextRenderer, Rigidbody2D } from 'engine-shim';
 ${source}
 `;
 
@@ -176,6 +182,7 @@ function installEngineGlobals(): void {
     BoxCollider2D,
     Collision2D,
     AudioSource,
+    TextRenderer,
   };
 }
 

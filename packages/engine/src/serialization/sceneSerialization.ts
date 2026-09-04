@@ -12,6 +12,7 @@ import { BoxCollider2D } from '../components/BoxCollider2D';
 import { Rigidbody2D } from '../components/Rigidbody2D';
 import { TilemapRenderer } from '../components/TilemapRenderer';
 import { AudioSource } from '../components/AudioSource';
+import { TextRenderer } from '../components/TextRenderer';
 import { GameObject } from '../core/GameObject';
 import { Scene } from '../core/Scene';
 
@@ -114,6 +115,19 @@ export function serializeGameObject(obj: GameObject): SerializedGameObject {
     });
   }
 
+  for (const component of obj.getComponents(TextRenderer)) {
+    components.push({
+      type: 'TextRenderer',
+      enabled: component.enabled,
+      text: component.text,
+      fontSize: component.fontSize,
+      color: colorToHex(component.color),
+      alignment: component.alignment,
+      sortingOrder: component.sortingOrder,
+      offsetY: component.offsetY,
+    });
+  }
+
   return {
     id: obj.id,
     name: obj.name,
@@ -200,6 +214,15 @@ function applyComponents(obj: GameObject, components: SerializedComponent[]): vo
       audio.volume = data.volume;
       audio.loop = data.loop;
       audio.playOnAwake = data.playOnAwake;
+    } else if (data.type === 'TextRenderer') {
+      const text = obj.addComponent(new TextRenderer());
+      text.enabled = data.enabled;
+      text.text = data.text;
+      text.fontSize = data.fontSize;
+      text.color = Color.fromHex(data.color);
+      text.alignment = data.alignment;
+      text.sortingOrder = data.sortingOrder;
+      text.offsetY = data.offsetY;
     }
   }
 }

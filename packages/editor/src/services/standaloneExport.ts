@@ -97,7 +97,13 @@ async function loadPlayerBundle(): Promise<string> {
       'Player runtime is missing. Run "npm run build:player" from the repo root, then try again.',
     );
   }
-  return response.text();
+  const source = await response.text();
+  if (!source.includes('fillText')) {
+    throw new Error(
+      'Player runtime is outdated (missing text rendering). Run "npm run build:player", then try again.',
+    );
+  }
+  return source;
 }
 
 export async function exportStandaloneGame(

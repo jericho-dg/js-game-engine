@@ -26,10 +26,37 @@ import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
 import { createJumpSoundWav, JUMP_SFX_ASSET_ID } from '../demo/jumpSound';
+import {
+  createFlapSoundWav,
+  createFlappySoundAssetIds,
+  createHitSoundWav,
+  createScoreSoundWav,
+  type FlappySoundAssetIds,
+} from '../demo/flappySounds';
+import {
+  createFlappyProjectData,
+  FLAPPY_GAME_MANAGER_SCRIPT_ID,
+} from '../demo/flappyDemo';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const LEGACY_SPIN_SCRIPT_ID = 'script-spin-demo';
 const CURRENT_PLAYER_SCRIPT_ID = 'script-player-move-demo';
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
+export interface LoadedProject {
+  projectId: string;
+  projectName: string;
+  scene: Scene;
+  scripts: ScriptRecord[];
+  prefabs: import('@js-game-engine/shared').PrefabRecord[];
+}
+
+export type ProjectTemplate = 'blank' | 'demo' | 'flappy';
 
 function migrateLoadedProject(scene: Scene, scripts: ScriptRecord[]): ScriptRecord[] {
   let nextScripts = scripts;
@@ -80,14 +107,14 @@ function remapScriptReferencesRecursive(
   }
 }
 
-async function ensureDefaultDemoAssets(projectId: string): Promise<void> {
-  const existing = await db.assets.get(JUMP_SFX_ASSET_ID);
+async function ensureDefaultDemoAssets(projectId: string, assetId: string): Promise<void> {
+  const existing = await db.assets.get(assetId);
   if (existing) return;
 
   const blob = createJumpSoundWav();
   const buffer = await AudioSystem.decodeBlob(blob);
   const record: AssetRecord = {
-    id: JUMP_SFX_ASSET_ID,
+    id: assetId,
     projectId,
     name: 'jump.wav',
     type: 'audio',
@@ -98,6 +125,59 @@ async function ensureDefaultDemoAssets(projectId: string): Promise<void> {
 
   await db.assets.put({ ...record, blob });
   useAssetStore.getState().registerAudioAsset(record, buffer, blob);
+}
+
+async function ensureFlappyDemoAssets(
+  projectId: string,
+  soundIds: FlappySoundAssetIds,
+): Promise<void> {
+  const sounds = [
+    { id: soundIds.flap, name: 'flap.wav', blob: createFlapSoundWav() },
+    { id: soundIds.score, name: 'score.wav', blob: createScoreSoundWav() },
+    { id: soundIds.hit, name: 'hit.wav', blob: createHitSoundWav() },
+  ];
+
+  for (const sound of sounds) {
+    const existing = await db.assets.get(sound.id);
+    if (existing) continue;
+
+    const buffer = await AudioSystem.decodeBlob(sound.blob);
+    const record: AssetRecord = {
+      id: sound.id,
+      projectId,
+      name: sound.name,
+      type: 'audio',
+      mimeType: 'audio/wav',
+      width: 0,
+      height: 0,
+    };
+    await db.assets.put({ ...record, blob: sound.blob });
+    useAssetStore.getState().registerAudioAsset(record, buffer, sound.blob);
+  }
+}
+
+function getDemoJumpAssetId(scene: Scene, scripts: ScriptRecord[]): string | null {
+  const player = scene.findByName('Player');
+  const audio = player?.getComponent(AudioSource);
+  if (audio?.audioAssetId) return audio.audioAssetId;
+  if (scripts.some((script) => script.id === CURRENT_PLAYER_SCRIPT_ID)) {
+    return JUMP_SFX_ASSET_ID;
+  }
+  return null;
+}
+
+function createBlankProjectData(name = 'Untitled Project'): ProjectData {
+  const scene = new Scene('Main');
+  const camera = scene.createGameObject('Main Camera');
+  camera.addComponent(new Camera2D());
+
+  return {
+    version: PROJECT_VERSION,
+    name,
+    scene: serializeScene(scene),
+    scripts: [],
+    prefabs: [],
+  };
 }
 
 function migrateDemoScene(scene: Scene): boolean {
@@ -114,7 +194,10 @@ function migrateDemoScene(scene: Scene): boolean {
   return true;
 }
 
-function createDefaultProjectData(): ProjectData {
+function createDefaultProjectData(
+  name = 'Jump Demo',
+  jumpAssetId = JUMP_SFX_ASSET_ID,
+): ProjectData {
   const playerScript = createDefaultPlayerMoveScript();
   const scene = new Scene('Main');
 
@@ -135,7 +218,7 @@ function createDefaultProjectData(): ProjectData {
   const playerScriptComponent = player.addComponent(new ScriptComponent());
   playerScriptComponent.scriptAssetId = playerScript.id;
   const jumpAudio = player.addComponent(new AudioSource());
-  jumpAudio.audioAssetId = JUMP_SFX_ASSET_ID;
+  jumpAudio.audioAssetId = jumpAssetId;
   jumpAudio.playOnAwake = false;
   jumpAudio.volume = 0.65;
   jumpAudio.loop = false;
@@ -164,23 +247,161 @@ function createDefaultProjectData(): ProjectData {
 
   return {
     version: PROJECT_VERSION,
-    name: 'Jump Demo',
+    name,
     scene: serializeScene(scene),
     scripts: [playerScript],
     prefabs: [],
   };
 }
 
+function migrateFlappyScene(scene: Scene, scripts: ScriptRecord[]): boolean {
+  const isFlappy = scripts.some((script) => script.id === FLAPPY_GAME_MANAGER_SCRIPT_ID);
+  if (!isFlappy || scene.findByName('SkyBackground')) return false;
+
+  const background = scene.createGameObject('SkyBackground');
+  background.transform.localPosition.set(0, 0);
+  const sky = background.addComponent(new SpriteRenderer());
+  sky.color = Color.fromHex('#70c5ce');
+  sky.width = 2400;
+  sky.height = 1600;
+  sky.sortingOrder = -100;
+
+  const cameraObject = scene.findByName('Main Camera');
+  const camera = cameraObject?.getComponent(Camera2D);
+  if (camera) {
+    camera.backgroundColor = Color.fromHex('#70c5ce');
+  }
+
+  return true;
+}
+
+async function hydrateAndMigrateStoredProject(stored: {
+  id: string;
+  name: string;
+  data: ProjectData;
+  updatedAt: number;
+}): Promise<{
+  stored: { id: string; name: string; data: ProjectData; updatedAt: number };
+  scene: Scene;
+  scripts: ScriptRecord[];
+  prefabs: import('@js-game-engine/shared').PrefabRecord[];
+}> {
+  const jumpAssetId = getDemoJumpAssetId(
+    deserializeScene(stored.data.scene),
+    stored.data.scripts ?? [],
+  );
+  if (jumpAssetId) {
+    await ensureDefaultDemoAssets(stored.id, jumpAssetId);
+  }
+
+  await useAssetStore.getState().loadForProject(stored.id);
+  const scene = deserializeScene(stored.data.scene);
+  let scripts = migrateLoadedProject(scene, stored.data.scripts ?? []);
+  const sceneMigrated = migrateDemoScene(scene) || migrateFlappyScene(scene, scripts);
+  hydrateSceneAssets(scene);
+
+  const scriptsChanged =
+    JSON.stringify(scripts) !== JSON.stringify(stored.data.scripts ?? []);
+  const shouldRenameDemo = stored.name === 'Untitled Project' && scene.findByName('Player');
+
+  let nextStored = stored;
+  if (sceneMigrated || scriptsChanged || shouldRenameDemo) {
+    nextStored = {
+      ...stored,
+      name: shouldRenameDemo ? 'Jump Demo' : stored.name,
+      data: {
+        ...stored.data,
+        scene: serializeScene(scene),
+        scripts,
+      },
+      updatedAt: Date.now(),
+    };
+    await db.projects.put(nextStored);
+  }
+
+  const prefabs = nextStored.data.prefabs ?? [];
+  usePrefabStore.getState().setPrefabs(prefabs);
+
+  return {
+    stored: nextStored,
+    scene,
+    scripts,
+    prefabs,
+  };
+}
+
 export class ProjectService {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  async loadOrCreateDefault(): Promise<{
-    projectId: string;
-    projectName: string;
-    scene: Scene;
-    scripts: ScriptRecord[];
-    prefabs: import('@js-game-engine/shared').PrefabRecord[];
-  }> {
+  async listProjects(): Promise<ProjectSummary[]> {
+    const rows = await db.projects.orderBy('updatedAt').reverse().toArray();
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  async createProject(
+    template: ProjectTemplate,
+    name?: string,
+  ): Promise<LoadedProject> {
+    const projectId = crypto.randomUUID();
+    let data: ProjectData;
+
+    if (template === 'demo') {
+      const jumpAssetId = crypto.randomUUID();
+      data = createDefaultProjectData(name?.trim() || 'Jump Demo', jumpAssetId);
+      await db.projects.put({
+        id: projectId,
+        name: data.name,
+        data,
+        updatedAt: Date.now(),
+      });
+      await ensureDefaultDemoAssets(projectId, jumpAssetId);
+    } else if (template === 'flappy') {
+      const soundIds = createFlappySoundAssetIds();
+      data = createFlappyProjectData(name?.trim() || 'Flappy Bird', soundIds);
+      await db.projects.put({
+        id: projectId,
+        name: data.name,
+        data,
+        updatedAt: Date.now(),
+      });
+      await ensureFlappyDemoAssets(projectId, soundIds);
+    } else {
+      data = createBlankProjectData(name?.trim() || 'Untitled Project');
+      await db.projects.put({
+        id: projectId,
+        name: data.name,
+        data,
+        updatedAt: Date.now(),
+      });
+    }
+
+    return this.loadProject(projectId);
+  }
+
+  async loadProject(projectId: string): Promise<LoadedProject> {
+    const stored = await db.projects.get(projectId);
+    if (!stored) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const { stored: nextStored, scene, scripts, prefabs } =
+      await hydrateAndMigrateStoredProject(stored);
+
+    return {
+      projectId: nextStored.id,
+      projectName: nextStored.name,
+      scene,
+      scripts,
+      prefabs,
+    };
+  }
+
+  /** @deprecated Use listProjects + loadProject. Kept for legacy default-project migration. */
+  async loadOrCreateDefault(): Promise<LoadedProject> {
     let stored = await db.projects.get(DEFAULT_PROJECT_ID);
 
     if (!stored) {
@@ -192,44 +413,31 @@ export class ProjectService {
         updatedAt: Date.now(),
       };
       await db.projects.put(stored);
-      await ensureDefaultDemoAssets(stored.id);
+      await ensureDefaultDemoAssets(stored.id, JUMP_SFX_ASSET_ID);
     }
 
-    await ensureDefaultDemoAssets(stored.id);
-    await useAssetStore.getState().loadForProject(stored.id);
-    const scene = deserializeScene(stored.data.scene);
-    let scripts = migrateLoadedProject(scene, stored.data.scripts ?? []);
-    const sceneMigrated = migrateDemoScene(scene);
-    hydrateSceneAssets(scene);
+    return this.loadProject(stored.id);
+  }
 
-    const scriptsChanged =
-      JSON.stringify(scripts) !== JSON.stringify(stored.data.scripts ?? []);
-    const shouldRenameDemo = stored.name === 'Untitled Project' && scene.findByName('Player');
+  async deleteProject(projectId: string): Promise<void> {
+    this.cancelAutoSave();
+    await db.assets.where('projectId').equals(projectId).delete();
+    await db.projects.delete(projectId);
+  }
 
-    if (sceneMigrated || scriptsChanged || shouldRenameDemo) {
-      stored = {
-        ...stored,
-        name: shouldRenameDemo ? 'Jump Demo' : stored.name,
-        data: {
-          ...stored.data,
-          scene: serializeScene(scene),
-          scripts,
-        },
-        updatedAt: Date.now(),
-      };
-      await db.projects.put(stored);
+  async renameProject(projectId: string, name: string): Promise<void> {
+    const stored = await db.projects.get(projectId);
+    if (!stored) {
+      throw new Error(`Project not found: ${projectId}`);
     }
 
-    const prefabs = stored.data.prefabs ?? [];
-    usePrefabStore.getState().setPrefabs(prefabs);
-
-    return {
-      projectId: stored.id,
-      projectName: stored.name,
-      scene,
-      scripts,
-      prefabs,
-    };
+    const trimmed = name.trim() || 'Untitled Project';
+    await db.projects.put({
+      ...stored,
+      name: trimmed,
+      data: { ...stored.data, name: trimmed },
+      updatedAt: Date.now(),
+    });
   }
 
   async save(scene: Scene, projectId: string, projectName: string): Promise<void> {
@@ -265,13 +473,7 @@ export class ProjectService {
     }
   }
 
-  async resetToDemo(projectId: string): Promise<{
-    projectId: string;
-    projectName: string;
-    scene: Scene;
-    scripts: ScriptRecord[];
-    prefabs: import('@js-game-engine/shared').PrefabRecord[];
-  }> {
+  async resetToDemo(projectId: string): Promise<LoadedProject> {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
@@ -280,8 +482,9 @@ export class ProjectService {
     await db.assets.where('projectId').equals(projectId).delete();
     useAssetStore.getState().clearAll();
 
-    const data = createDefaultProjectData();
-    await ensureDefaultDemoAssets(projectId);
+    const jumpAssetId = crypto.randomUUID();
+    const data = createDefaultProjectData('Jump Demo', jumpAssetId);
+    await ensureDefaultDemoAssets(projectId, jumpAssetId);
     await db.projects.put({
       id: projectId,
       name: data.name,
@@ -289,18 +492,7 @@ export class ProjectService {
       updatedAt: Date.now(),
     });
 
-    const scene = deserializeScene(data.scene);
-    await useAssetStore.getState().loadForProject(projectId);
-    hydrateSceneAssets(scene);
-    usePrefabStore.getState().setPrefabs(data.prefabs ?? []);
-
-    return {
-      projectId,
-      projectName: data.name,
-      scene,
-      scripts: data.scripts,
-      prefabs: data.prefabs ?? [],
-    };
+    return this.loadProject(projectId);
   }
 
   async importAsset(projectId: string, file: File): Promise<AssetRecord> {

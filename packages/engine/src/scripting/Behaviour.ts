@@ -1,6 +1,7 @@
 import { BoxCollider2D } from '../components/BoxCollider2D';
 import { Rigidbody2D } from '../components/Rigidbody2D';
 import { AudioSource } from '../components/AudioSource';
+import { TextRenderer } from '../components/TextRenderer';
 import type { Collision2D } from '../physics/Collision2D';
 import type { GameObject } from '../core/GameObject';
 import type { Transform } from '../core/Transform';
@@ -25,6 +26,14 @@ export class Behaviour {
 
   getAudioSource(): AudioSource | null {
     return this.gameObject.getComponent(AudioSource);
+  }
+
+  findGameObject(name: string): GameObject | null {
+    return this.gameObject.scene?.findByName(name) ?? null;
+  }
+
+  getTextRenderer(): TextRenderer | null {
+    return this.gameObject.getComponent(TextRenderer);
   }
 
   onAwake(): void {}

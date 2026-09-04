@@ -2,6 +2,7 @@ import { Color } from '@js-game-engine/shared';
 import { Camera2D } from '../components/Camera2D';
 import { SpriteRenderer } from '../components/SpriteRenderer';
 import { TilemapRenderer } from '../components/TilemapRenderer';
+import { TextRenderer } from '../components/TextRenderer';
 import type { Scene } from '../core/Scene';
 import type { GameObject } from '../core/GameObject';
 
@@ -109,6 +110,15 @@ export class Canvas2DRenderer {
       }
     }
 
+    for (const text of obj.getComponents(TextRenderer)) {
+      if (text.enabled) {
+        results.push({
+          sortingOrder: text.sortingOrder,
+          draw: (ctx) => this.drawText(ctx, obj, text),
+        });
+      }
+    }
+
     for (const child of obj.children) {
       this.collectDrawablesRecursive(child, results);
     }
@@ -207,6 +217,33 @@ export class Canvas2DRenderer {
       ctx.fillRect(0, 0, width, height);
     }
 
+    ctx.restore();
+  }
+
+  private drawText(
+    ctx: CanvasRenderingContext2D,
+    obj: GameObject,
+    text: TextRenderer,
+  ): void {
+    if (!text.text) return;
+
+    const transform = obj.transform;
+    const pos = transform.worldPosition;
+    const rotation = transform.worldRotation;
+    const scale = transform.worldScale;
+
+    ctx.save();
+    ctx.translate(pos.x, pos.y + text.offsetY);
+    ctx.rotate(rotation);
+    ctx.scale(scale.x, scale.y);
+    // World space uses a flipped Y axis; undo that for readable text.
+    ctx.scale(1, -1);
+
+    ctx.font = `${text.fontSize}px system-ui, sans-serif`;
+    ctx.fillStyle = text.color.toCss();
+    ctx.textAlign = text.alignment;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text.text, 0, 0);
     ctx.restore();
   }
 

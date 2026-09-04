@@ -4,11 +4,15 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 ## Status
 
-**Phase 6 — Export and Polish** in progress. Undo/redo, ZIP project export/import, and standalone HTML game export are available.
+**Phase 7 — Project Management** in progress. The app opens to a project manager where you can create, open, delete, and import projects.
+
+**Phase 6 — Export and Polish** complete. Undo/redo, ZIP project export/import, standalone HTML game export, and audio playback are available.
 
 **Phase 5 — Tilemaps and Prefabs** complete. TilemapRenderer with tileset painting, prefab save/instantiate, and project persistence are included.
 
 Previous phases: physics/input, scripting, editor essentials, and engine core.
+
+**Phase 8 (planned):** Cloud sync and collaboration (formerly Phase 7 in the original design plan).
 
 ## Getting started
 
@@ -17,9 +21,27 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Vite (typically `http://localhost:5173`).
+Open the URL printed by Vite (typically `http://localhost:5173`). The **Project Manager** opens first — create or open a project to enter the editor.
 
-## Phase 6 features (in progress)
+## Phase 7 features (in progress)
+
+### Project Manager
+- Opens on launch with a list of saved projects (stored in IndexedDB)
+- **New Project** — dialog to pick blank, Jump Demo, or Flappy Bird template and name
+- **Import** — create a project from a `.jge.zip` archive
+- **Open** / **Delete** per project card
+
+### Editor project controls
+- **New**, **Open**, and **Projects** buttons in the toolbar top row
+- **Projects** saves the current project and returns to the project manager
+- **Open** shows a quick-switch dialog without leaving the editor layout
+
+### Flappy Bird demo
+- Full **Flappy Bird** template with title menu, gameplay, game-over screen, and score HUD
+- Tap **SPACE** or **↑** to flap; pass pipes to score
+- Synthesized flap, score, and crash sound effects
+
+## Phase 6 features
 
 ### Undo / Redo
 - **Undo** and **Redo** toolbar buttons, or **Ctrl+Z** / **Ctrl+Shift+Z**
@@ -32,6 +54,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 ### Standalone HTML export
 - **Export Game** downloads a self-contained `-game.zip` you can host or open locally
 - Contains `index.html`, `jge-player.js`, `game.json`, and an `assets/` folder
+- **Text Renderer** components export with the scene and render in the standalone player
 - Click **Click to Play** to start (unlocks audio via user gesture)
 - Build the player bundle first if exporting from a fresh clone: `npm run build:player`
 

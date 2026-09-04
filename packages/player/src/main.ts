@@ -12,6 +12,7 @@ import {
   ScriptComponent,
   SpriteRenderer,
   TilemapRenderer,
+  TextRenderer,
   AudioSystem,
   Time,
   deserializeScene,
@@ -33,6 +34,7 @@ function installEngineGlobals(): void {
     BoxCollider2D,
     Collision2D,
     AudioSource,
+    TextRenderer,
   };
 }
 
