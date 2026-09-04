@@ -2,9 +2,11 @@ import { useRef } from 'react';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { useHistoryStore } from '../stores/historyStore';
+import { useAppStore } from '../stores/appStore';
 import { projectService } from '../services/ProjectService';
 import { exportProjectZip, importProjectZip } from '../services/projectExport';
 import { exportStandaloneGame } from '../services/standaloneExport';
+import { returnToProjectManager } from '../services/projectLoader';
 import { useConsoleStore } from '../stores/consoleStore';
 
 export function Toolbar() {
@@ -20,6 +22,8 @@ export function Toolbar() {
   const canRedo = useHistoryStore((s) => s.canRedo);
   const undo = useHistoryStore((s) => s.undo);
   const redo = useHistoryStore((s) => s.redo);
+  const openNewProjectDialog = useAppStore((s) => s.openNewProjectDialog);
+  const openOpenProjectDialog = useAppStore((s) => s.openOpenProjectDialog);
 
   const save = async () => {
     if (!scene || !projectId) return;
@@ -57,7 +61,6 @@ export function Toolbar() {
 
     try {
       await importProjectZip(file, projectId);
-      useConsoleStore.getState().log('log', `Imported ${file.name}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       useConsoleStore.getState().log('error', `Import failed: ${message}`);
@@ -69,6 +72,25 @@ export function Toolbar() {
   return (
     <header className="flex shrink-0 flex-col border-b border-[#3c3c3c] bg-[#2d2d2d]">
       <div className="flex h-8 items-center gap-1 border-b border-[#3c3c3c] px-2">
+        <ToolbarButton
+          label="New"
+          title="Create a new project"
+          disabled={!isEditing}
+          onClick={openNewProjectDialog}
+        />
+        <ToolbarButton
+          label="Open"
+          title="Open another project"
+          disabled={!isEditing}
+          onClick={openOpenProjectDialog}
+        />
+        <ToolbarButton
+          label="Projects"
+          title="Back to project manager"
+          disabled={editorMode === 'play'}
+          onClick={() => void returnToProjectManager()}
+        />
+        <div className="mx-1 h-5 w-px bg-[#3c3c3c]" />
         <ToolbarButton label="Save" title="Save project" onClick={() => void save()} />
         <ToolbarButton
           label="Export"

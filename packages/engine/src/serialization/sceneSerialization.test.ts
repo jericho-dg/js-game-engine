@@ -4,6 +4,7 @@ import { Scene } from '../core/Scene';
 import { SpriteRenderer } from '../components/SpriteRenderer';
 import { TilemapRenderer } from '../components/TilemapRenderer';
 import { AudioSource } from '../components/AudioSource';
+import { TextRenderer } from '../components/TextRenderer';
 import {
   deserializeScene,
   serializeGameObject,
@@ -75,6 +76,25 @@ describe('sceneSerialization', () => {
     expect(restoredAudio?.volume).toBe(0.75);
     expect(restoredAudio?.loop).toBe(true);
     expect(restoredAudio?.playOnAwake).toBe(false);
+  });
+
+  it('round-trips text renderer data', () => {
+    const scene = new Scene('TextTest');
+    const label = scene.createGameObject('Label');
+    const text = label.addComponent(new TextRenderer());
+    text.text = 'Score: 5';
+    text.fontSize = 36;
+    text.alignment = 'center';
+    text.sortingOrder = 50;
+    text.offsetY = 120;
+
+    const restored = deserializeScene(serializeScene(scene));
+    const restoredText = restored.rootObjects[0].getComponent(TextRenderer);
+
+    expect(restoredText?.text).toBe('Score: 5');
+    expect(restoredText?.fontSize).toBe(36);
+    expect(restoredText?.sortingOrder).toBe(50);
+    expect(restoredText?.offsetY).toBe(120);
   });
 });
 

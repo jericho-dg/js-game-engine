@@ -9,6 +9,7 @@ import { Scene, deserializeScene, serializeScene, AudioSystem } from '@js-game-e
 import { db } from './db';
 import { hydrateSceneAssets, projectService } from './ProjectService';
 import { useAssetStore } from '../stores/assetStore';
+import { useConsoleStore } from '../stores/consoleStore';
 import { useHistoryStore } from '../stores/historyStore';
 import { usePrefabStore } from '../stores/prefabStore';
 import { useSceneStore } from '../stores/sceneStore';
@@ -84,6 +85,24 @@ export async function exportProjectZip(
 }
 
 export async function importProjectZip(file: File, projectId: string): Promise<void> {
+  const { projectName } = await importProjectZipIntoProject(file, projectId);
+  useConsoleStore.getState().log('log', `Imported ${projectName}`);
+}
+
+export async function importProjectZipAsNew(
+  file: File,
+  name?: string,
+): Promise<{ projectId: string; projectName: string }> {
+  const projectId = crypto.randomUUID();
+  const result = await importProjectZipIntoProject(file, projectId, name);
+  return { projectId, projectName: result.projectName };
+}
+
+async function importProjectZipIntoProject(
+  file: File,
+  projectId: string,
+  overrideName?: string,
+): Promise<{ projectName: string }> {
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const manifestFile = zip.file('manifest.json');
   if (!manifestFile) {
@@ -130,8 +149,11 @@ export async function importProjectZip(file: File, projectId: string): Promise<v
 
   await db.projects.put({
     id: projectId,
-    name: manifest.project.name,
-    data: manifest.project,
+    name: overrideName?.trim() || manifest.project.name,
+    data: {
+      ...manifest.project,
+      name: overrideName?.trim() || manifest.project.name,
+    },
     updatedAt: Date.now(),
   });
 
@@ -142,16 +164,22 @@ export async function importProjectZip(file: File, projectId: string): Promise<v
   usePrefabStore.getState().setPrefabs(manifest.project.prefabs ?? []);
   await useScriptStore.getState().compileAllSavedScripts();
 
+  const projectName = overrideName?.trim() || manifest.project.name;
+
   useSceneStore.setState({
     scene,
-    projectName: manifest.project.name,
+    projectId,
+    projectName,
     selectedId: null,
     playScene: null,
     editorMode: 'edit',
+    isLoaded: true,
     sceneRevision: useSceneStore.getState().sceneRevision + 1,
   });
 
   useHistoryStore.getState().resetHistory();
+
+  return { projectName };
 }
 
 function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {

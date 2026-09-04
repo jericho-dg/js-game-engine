@@ -19,6 +19,8 @@ export { BoxCollider2D } from './components/BoxCollider2D';
 export { Rigidbody2D } from './components/Rigidbody2D';
 export { TilemapRenderer } from './components/TilemapRenderer';
 export { AudioSource } from './components/AudioSource';
+export { TextRenderer } from './components/TextRenderer';
+export type { TextAlignment } from './components/TextRenderer';
 export { AudioSystem } from './audio/AudioSystem';
 
 export { Behaviour } from './scripting/Behaviour';

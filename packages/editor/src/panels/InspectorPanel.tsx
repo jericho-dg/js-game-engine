@@ -8,6 +8,7 @@ import {
   BoxCollider2D,
   Rigidbody2D,
   AudioSource,
+  TextRenderer,
   type Component,
 } from '@js-game-engine/engine';
 import { Panel } from '../components/Panel';
@@ -211,6 +212,49 @@ export function InspectorPanel() {
               onChange={(v) => {
                 selected.getComponent(AudioSource)!.playOnAwake = v;
               }}
+            />
+          </ComponentSection>
+        )}
+
+        {selected.getComponent(TextRenderer) && (
+          <ComponentSection
+            title="Text Renderer"
+            onRemove={makeRemoveHandler(selected.getComponent(TextRenderer)!)}
+          >
+            <TextField
+              key={`${selected.id}-text-content`}
+              label="Text"
+              value={selected.getComponent(TextRenderer)!.text}
+              onChange={(v) => {
+                selected.getComponent(TextRenderer)!.text = v;
+              }}
+            />
+            <NumberField
+              key={`${selected.id}-text-size`}
+              label="Font Size"
+              value={selected.getComponent(TextRenderer)!.fontSize}
+              onChange={(v) => {
+                selected.getComponent(TextRenderer)!.fontSize = Math.max(8, v);
+              }}
+              step={1}
+            />
+            <NumberField
+              key={`${selected.id}-text-offset`}
+              label="Offset Y"
+              value={selected.getComponent(TextRenderer)!.offsetY}
+              onChange={(v) => {
+                selected.getComponent(TextRenderer)!.offsetY = v;
+              }}
+              step={1}
+            />
+            <NumberField
+              key={`${selected.id}-text-order`}
+              label="Sorting Order"
+              value={selected.getComponent(TextRenderer)!.sortingOrder}
+              onChange={(v) => {
+                selected.getComponent(TextRenderer)!.sortingOrder = v;
+              }}
+              step={1}
             />
           </ComponentSection>
         )}

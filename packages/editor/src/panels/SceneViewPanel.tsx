@@ -29,7 +29,7 @@ export function SceneViewPanel() {
     const scene = getActiveScene();
     if (!canvas || !container || !scene) return;
 
-    const runtime = new Runtime({ scene, canvas, showGrid: true });
+    const runtime = new Runtime({ scene, canvas, showGrid: editorMode === 'edit' });
     const dragState = {
       active: false,
       objectId: null as string | null,

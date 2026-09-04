@@ -3,6 +3,18 @@ declare class GameObject {
   name: string;
   readonly transform: Transform;
   active: boolean;
+  readonly children: GameObject[];
+  getComponent(type: unknown): unknown;
+  getComponents(type: unknown): unknown[];
+}
+
+declare class TextRenderer {
+  readonly gameObject: GameObject;
+  text: string;
+  fontSize: number;
+  alignment: 'left' | 'center' | 'right';
+  sortingOrder: number;
+  offsetY: number;
 }
 
 declare class Transform {
@@ -57,6 +69,7 @@ declare class Behaviour {
   getRigidbody2D(): Rigidbody2D | null;
   getBoxCollider2D(): BoxCollider2D | null;
   getAudioSource(): AudioSource | null;
+  findGameObject(name: string): GameObject | null;
   onAwake(): void;
   onStart(): void;
   onUpdate(deltaTime: number): void;
@@ -93,6 +106,7 @@ declare module '@js-game-engine/script-api' {
     BoxCollider2D,
     Rigidbody2D,
     AudioSource,
+    TextRenderer,
     Collision2D,
     Input,
     Time,
@@ -109,6 +123,7 @@ declare module 'engine' {
     BoxCollider2D,
     Rigidbody2D,
     AudioSource,
+    TextRenderer,
     Collision2D,
     Input,
     Time,

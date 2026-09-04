@@ -68,13 +68,23 @@ export type SerializedComponent =
       tiles: number[];
       sortingOrder: number;
     }
-  | {
+    | {
       type: 'AudioSource';
       enabled: boolean;
       audioAssetId: string | null;
       volume: number;
       loop: boolean;
       playOnAwake: boolean;
+    }
+  | {
+      type: 'TextRenderer';
+      enabled: boolean;
+      text: string;
+      fontSize: number;
+      color: string;
+      alignment: 'left' | 'center' | 'right';
+      sortingOrder: number;
+      offsetY: number;
     };
 
 export interface PrefabRecord {
