@@ -8,6 +8,8 @@ import { exportProjectZip, importProjectZip } from '../services/projectExport';
 import { exportStandaloneGame } from '../services/standaloneExport';
 import { returnToProjectManager } from '../services/projectLoader';
 import { useConsoleStore } from '../stores/consoleStore';
+import { SyncStatusBar } from './SyncStatusBar';
+import { cloudSyncService } from '../services/cloudSyncService';
 
 export function Toolbar() {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -121,9 +123,15 @@ export function Toolbar() {
             if (file) void importProject(file);
           }}
         />
-        <span className="ml-auto text-xs text-[#858585]">
-          {projectName}
-          {editorMode === 'play' ? ' — Playing' : ''}
+        <span className="ml-auto flex items-center gap-3">
+          <SyncStatusBar
+            compact
+            onRetry={() => void cloudSyncService.retryPending()}
+          />
+          <span className="text-xs text-[#858585]">
+            {projectName}
+            {editorMode === 'play' ? ' — Playing' : ''}
+          </span>
         </span>
       </div>
 

@@ -39,6 +39,7 @@ import {
   createFlappyProjectData,
   FLAPPY_GAME_MANAGER_SCRIPT_ID,
 } from '../demo/flappyDemo';
+import { cloudSyncService } from './cloudSyncService';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const LEGACY_SPIN_SCRIPT_ID = 'script-spin-demo';
@@ -428,7 +429,9 @@ export class ProjectService {
       });
     }
 
-    return this.loadProject(projectId);
+    const loaded = await this.loadProject(projectId);
+    await cloudSyncService.syncProject(projectId, { background: true });
+    return loaded;
   }
 
   async loadProject(projectId: string): Promise<LoadedProject> {
@@ -468,8 +471,11 @@ export class ProjectService {
     return this.loadProject(stored.id);
   }
 
-  async deleteProject(projectId: string): Promise<void> {
+  async deleteProject(projectId: string, options?: { deleteCloud?: boolean }): Promise<void> {
     this.cancelAutoSave();
+    if (options?.deleteCloud) {
+      await cloudSyncService.deleteCloudCopy(projectId);
+    }
     await db.assets.where('projectId').equals(projectId).delete();
     await db.projects.delete(projectId);
   }
@@ -487,6 +493,7 @@ export class ProjectService {
       data: { ...stored.data, name: trimmed },
       updatedAt: Date.now(),
     });
+    await cloudSyncService.syncProject(projectId, { background: true });
   }
 
   async save(scene: Scene, projectId: string, projectName: string): Promise<void> {
@@ -496,6 +503,7 @@ export class ProjectService {
     const scripts = useScriptStore.getState().scripts;
     const prefabs = usePrefabStore.getState().prefabs;
     const { scenes, activeSceneId } = sceneAssetStore;
+    const existing = await db.projects.get(projectId);
     const data: ProjectData = {
       version: PROJECT_VERSION,
       name: projectName,
@@ -511,7 +519,11 @@ export class ProjectService {
       name: projectName,
       data,
       updatedAt: Date.now(),
+      cloudId: existing?.cloudId,
+      lastSyncedAt: existing?.lastSyncedAt,
     });
+
+    await cloudSyncService.syncProject(projectId, { background: true });
   }
 
   scheduleAutoSave(scene: Scene, projectId: string, projectName: string): void {
