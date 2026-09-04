@@ -12,6 +12,7 @@ import { useAssetStore } from '../stores/assetStore';
 import { useConsoleStore } from '../stores/consoleStore';
 import { useHistoryStore } from '../stores/historyStore';
 import { usePrefabStore } from '../stores/prefabStore';
+import { useSceneAssetStore } from '../stores/sceneAssetStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 
@@ -45,10 +46,14 @@ export async function exportProjectZip(
 ): Promise<void> {
   const scripts = useScriptStore.getState().scripts;
   const prefabs = usePrefabStore.getState().prefabs;
+  const sceneAssetStore = useSceneAssetStore.getState();
+  sceneAssetStore.updateActiveSceneData(serializeScene(scene));
 
   const project: ProjectData = {
     version: PROJECT_VERSION,
     name: projectName,
+    activeSceneId: sceneAssetStore.activeSceneId ?? undefined,
+    scenes: sceneAssetStore.scenes,
     scene: serializeScene(scene),
     scripts,
     prefabs,
@@ -157,7 +162,31 @@ async function importProjectZipIntoProject(
     updatedAt: Date.now(),
   });
 
-  const scene = deserializeScene(manifest.project.scene);
+  const projectData = manifest.project;
+  const activeRecord =
+    projectData.scenes?.find((record) => record.id === projectData.activeSceneId) ??
+    (projectData.scene
+      ? {
+          id: crypto.randomUUID(),
+          name: projectData.scene.name || 'Main',
+          data: projectData.scene,
+        }
+      : null);
+
+  if (!activeRecord) {
+    throw new Error('Invalid project archive: no scene data.');
+  }
+
+  if (projectData.scenes && projectData.activeSceneId) {
+    useSceneAssetStore.getState().setScenes(projectData.scenes, projectData.activeSceneId);
+  } else {
+    useSceneAssetStore.getState().setScenes(
+      [{ id: activeRecord.id, name: activeRecord.name, data: activeRecord.data }],
+      activeRecord.id,
+    );
+  }
+
+  const scene = deserializeScene(activeRecord.data);
   hydrateSceneAssets(scene);
 
   useScriptStore.getState().setScripts(manifest.project.scripts ?? []);

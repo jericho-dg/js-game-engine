@@ -15,8 +15,10 @@ import {
 } from '@js-game-engine/engine';
 import type { FlappySoundAssetIds } from './flappySounds';
 
+export const FLAPPY_MENU_SCRIPT_ID = 'script-flappy-menu';
 export const FLAPPY_GAME_MANAGER_SCRIPT_ID = 'script-flappy-game-manager';
 export const FLAPPY_BIRD_SCRIPT_ID = 'script-flappy-bird';
+export const FLAPPY_GAME_OVER_SCRIPT_ID = 'script-flappy-game-over';
 
 const PIPE_WIDTH = 52;
 const PIPE_HEIGHT = 320;
@@ -28,6 +30,11 @@ const SKY_COLOR = '#70c5ce';
 export function createFlappyBirdScripts(): ScriptRecord[] {
   return [
     {
+      id: FLAPPY_MENU_SCRIPT_ID,
+      name: 'MenuController.ts',
+      source: FLAPPY_MENU_SOURCE,
+    },
+    {
       id: FLAPPY_GAME_MANAGER_SCRIPT_ID,
       name: 'FlappyGameManager.ts',
       source: FLAPPY_GAME_MANAGER_SOURCE,
@@ -37,6 +44,11 @@ export function createFlappyBirdScripts(): ScriptRecord[] {
       name: 'FlappyBird.ts',
       source: FLAPPY_BIRD_SOURCE,
     },
+    {
+      id: FLAPPY_GAME_OVER_SCRIPT_ID,
+      name: 'GameOverController.ts',
+      source: FLAPPY_GAME_OVER_SOURCE,
+    },
   ];
 }
 
@@ -44,26 +56,46 @@ export function createFlappyProjectData(
   name = 'Flappy Bird',
   soundIds: FlappySoundAssetIds,
 ): ProjectData {
-  const scene = new Scene('Main');
+  const menuScene = buildMenuScene();
+  const gameScene = buildGameScene(soundIds);
+  const gameOverScene = buildGameOverScene();
 
-  const background = scene.createGameObject('SkyBackground');
-  const sky = background.addComponent(new SpriteRenderer());
-  sky.color = Color.fromHex(SKY_COLOR);
-  sky.width = 2400;
-  sky.height = 1600;
-  sky.sortingOrder = -100;
+  const menuId = crypto.randomUUID();
+  const gameId = crypto.randomUUID();
+  const gameOverId = crypto.randomUUID();
 
-  const camera = scene.createGameObject('Main Camera');
-  const cameraComponent = camera.addComponent(new Camera2D());
-  cameraComponent.backgroundColor = Color.fromHex(SKY_COLOR);
-  cameraComponent.zoom = 1;
+  const menuData = serializeScene(menuScene);
+  return {
+    version: PROJECT_VERSION,
+    name,
+    activeSceneId: menuId,
+    scenes: [
+      { id: menuId, name: 'Menu', data: menuData },
+      { id: gameId, name: 'Game', data: serializeScene(gameScene) },
+      { id: gameOverId, name: 'GameOver', data: serializeScene(gameOverScene) },
+    ],
+    scene: menuData,
+    scripts: createFlappyBirdScripts(),
+    prefabs: [],
+  };
+}
+
+function buildMenuScene(): Scene {
+  const scene = createBaseScene('Menu');
 
   const menuRoot = scene.createGameObject('MenuRoot');
   addText(menuRoot, 'MenuTitle', 'Flappy Bird', 52, 90, '#ffffff');
   addText(menuRoot, 'MenuPrompt', 'Press SPACE to Start', 22, 0, '#ffffff');
-  addText(menuRoot, 'GameOverText', '', 28, -50, '#ffeb3b');
 
-  scene.createGameObject('GameOverFlag').active = false;
+  const controller = scene.createGameObject('MenuController');
+  const script = controller.addComponent(new ScriptComponent());
+  script.scriptAssetId = FLAPPY_MENU_SCRIPT_ID;
+
+  return scene;
+}
+
+function buildGameScene(soundIds: FlappySoundAssetIds): Scene {
+  const scene = createBaseScene('Game');
 
   const gameManager = scene.createGameObject('GameManager');
   const scoreAudio = gameManager.addComponent(new AudioSource());
@@ -77,9 +109,7 @@ export function createFlappyProjectData(
   const managerScript = gameManager.addComponent(new ScriptComponent());
   managerScript.scriptAssetId = FLAPPY_GAME_MANAGER_SCRIPT_ID;
 
-  const gameRoot = scene.createGameObject('GameRoot');
-
-  const bird = scene.createGameObject('Bird', gameRoot);
+  const bird = scene.createGameObject('Bird');
   bird.transform.localPosition.set(-100, 0);
   const birdSprite = bird.addComponent(new SpriteRenderer());
   birdSprite.color = Color.fromHex('#fbf1a9');
@@ -105,7 +135,7 @@ export function createFlappyProjectData(
   const birdScript = bird.addComponent(new ScriptComponent());
   birdScript.scriptAssetId = FLAPPY_BIRD_SCRIPT_ID;
 
-  const ground = scene.createGameObject('Ground', gameRoot);
+  const ground = scene.createGameObject('Ground');
   ground.transform.localPosition.set(0, -260);
   const groundSprite = ground.addComponent(new SpriteRenderer());
   groundSprite.color = Color.fromHex('#ded895');
@@ -123,32 +153,75 @@ export function createFlappyProjectData(
   groundCollider.width = 640;
   groundCollider.height = 40;
 
-  const ceiling = scene.createGameObject('Ceiling', gameRoot);
+  const ceiling = scene.createGameObject('Ceiling');
   ceiling.transform.localPosition.set(0, 290);
   const ceilingCollider = ceiling.addComponent(new BoxCollider2D());
   ceilingCollider.width = 640;
   ceilingCollider.height = 20;
 
   for (let i = 0; i < PIPE_COUNT; i += 1) {
-    createPipePair(gameRoot, `PipePair_${i}`, 180 + i * PIPE_SPACING, randomGapCenter(i));
+    createPipePair(scene, `PipePair_${i}`, 180 + i * PIPE_SPACING, randomGapCenter(i));
   }
 
-  addText(gameRoot, 'ScoreText', '0', 40, 220, '#ffffff');
+  addSceneText(scene, 'ScoreText', '0', 40, 220, '#ffffff');
 
-  gameRoot.active = false;
+  return scene;
+}
 
-  return {
-    version: PROJECT_VERSION,
-    name,
-    scene: serializeScene(scene),
-    scripts: createFlappyBirdScripts(),
-    prefabs: [],
-  };
+function buildGameOverScene(): Scene {
+  const scene = createBaseScene('GameOver');
+
+  const root = scene.createGameObject('GameOverRoot');
+  addText(root, 'GameOverTitle', 'Game Over', 44, 60, '#ffeb3b');
+  addText(root, 'GameOverPrompt', 'Press SPACE to Retry', 22, 0, '#ffffff');
+  addText(root, 'MenuHint', 'Press M for Menu', 16, -50, '#cccccc');
+
+  const controller = scene.createGameObject('GameOverController');
+  const script = controller.addComponent(new ScriptComponent());
+  script.scriptAssetId = FLAPPY_GAME_OVER_SCRIPT_ID;
+
+  return scene;
+}
+
+function createBaseScene(name: string): Scene {
+  const scene = new Scene(name);
+
+  const background = scene.createGameObject('SkyBackground');
+  const sky = background.addComponent(new SpriteRenderer());
+  sky.color = Color.fromHex(SKY_COLOR);
+  sky.width = 2400;
+  sky.height = 1600;
+  sky.sortingOrder = -100;
+
+  const camera = scene.createGameObject('Main Camera');
+  const cameraComponent = camera.addComponent(new Camera2D());
+  cameraComponent.backgroundColor = Color.fromHex(SKY_COLOR);
+  cameraComponent.zoom = 1;
+
+  return scene;
 }
 
 function randomGapCenter(index: number): number {
   const offsets = [40, -20, 80, 10];
   return offsets[index % offsets.length] ?? 0;
+}
+
+function addSceneText(
+  scene: Scene,
+  name: string,
+  text: string,
+  fontSize: number,
+  offsetY: number,
+  color: string,
+): void {
+  const obj = scene.createGameObject(name);
+  const label = obj.addComponent(new TextRenderer());
+  label.text = text;
+  label.fontSize = fontSize;
+  label.offsetY = offsetY;
+  label.color = Color.fromHex(color);
+  label.alignment = 'center';
+  label.sortingOrder = 200;
 }
 
 function addText(
@@ -170,22 +243,22 @@ function addText(
 }
 
 function createPipePair(
-  parent: GameObject,
+  scene: Scene,
   name: string,
   x: number,
   gapCenterY: number,
 ): GameObject {
-  const pair = parent.scene!.createGameObject(name, parent);
+  const pair = scene.createGameObject(name);
   pair.transform.localPosition.set(x, 0);
 
-  const top = parent.scene!.createGameObject('TopPipe', pair);
+  const top = scene.createGameObject('TopPipe', pair);
   top.transform.localPosition.set(0, gapCenterY + PIPE_GAP / 2 + PIPE_HEIGHT / 2);
   addPipeSprite(top, true);
   const topCollider = top.addComponent(new BoxCollider2D());
   topCollider.width = PIPE_WIDTH;
   topCollider.height = PIPE_HEIGHT;
 
-  const bottom = parent.scene!.createGameObject('BottomPipe', pair);
+  const bottom = scene.createGameObject('BottomPipe', pair);
   bottom.transform.localPosition.set(0, gapCenterY - PIPE_GAP / 2 - PIPE_HEIGHT / 2);
   addPipeSprite(bottom, false);
   const bottomCollider = bottom.addComponent(new BoxCollider2D());
@@ -210,10 +283,32 @@ function addPipeSprite(obj: GameObject, isTop: boolean): void {
   capSprite.sortingOrder = 1;
 }
 
+const FLAPPY_MENU_SOURCE = `export default class MenuController extends Behaviour {
+  onUpdate() {
+    if (Input.getKey(' ') || Input.getKey('Enter')) {
+      this.loadScene('Game');
+    }
+  }
+}
+`;
+
+const FLAPPY_GAME_OVER_SOURCE = `export default class GameOverController extends Behaviour {
+  onUpdate() {
+    if (Input.getKey(' ') || Input.getKey('Enter')) {
+      this.loadScene('Game');
+    }
+    if (Input.getKey('m') || Input.getKey('M')) {
+      this.loadScene('Menu');
+    }
+  }
+}
+`;
+
 const FLAPPY_BIRD_SOURCE = `export default class FlappyBird extends Behaviour {
   body = null;
   flapAudio = null;
   flapPressed = false;
+  ended = false;
 
   onStart() {
     this.body = this.getRigidbody2D();
@@ -221,10 +316,7 @@ const FLAPPY_BIRD_SOURCE = `export default class FlappyBird extends Behaviour {
   }
 
   onFixedUpdate() {
-    if (!this.body) return;
-
-    const gameRoot = this.findGameObject('GameRoot');
-    if (!gameRoot || !gameRoot.active) return;
+    if (!this.body || this.ended) return;
 
     this.body.velocity.x = 0;
 
@@ -240,112 +332,47 @@ const FLAPPY_BIRD_SOURCE = `export default class FlappyBird extends Behaviour {
   }
 
   onCollisionEnter(_collision) {
-    const gameRoot = this.findGameObject('GameRoot');
-    if (!gameRoot || !gameRoot.active) return;
+    if (this.ended) return;
+    this.ended = true;
 
-    const flag = this.findGameObject('GameOverFlag');
-    if (flag) flag.active = true;
+    const manager = this.findGameObject('GameManager');
+    if (manager) {
+      const sources = manager.getComponents(AudioSource);
+      const hit = sources[1];
+      if (hit) hit.playOneShot();
+    }
+
+    this.loadScene('GameOver');
   }
 }
 `;
 
 const FLAPPY_GAME_MANAGER_SOURCE = `export default class FlappyGameManager extends Behaviour {
-  state = 'menu';
   score = 0;
   pipeSpeed = 190;
   pipeSpacing = 220;
   scoredPipes = {};
   scoreAudio = null;
-  hitAudio = null;
 
   onStart() {
     const sources = this.gameObject.getComponents(AudioSource);
     this.scoreAudio = sources[0] ?? null;
-    this.hitAudio = sources[1] ?? null;
-    this.showMenu(false);
-  }
-
-  onUpdate(_dt) {
-    if (this.state === 'menu') {
-      if (Input.getKey(' ') || Input.getKey('Enter')) {
-        this.startGame();
-      }
-      return;
-    }
-
-    if (this.state === 'playing') {
-      const flag = this.findGameObject('GameOverFlag');
-      if (flag && flag.active) {
-        this.enterGameOver();
-        return;
-      }
-
-      this.movePipes(Time.deltaTime);
-      this.checkScoring();
-    }
-
-    if (this.state === 'gameover') {
-      if (Input.getKey(' ') || Input.getKey('Enter')) {
-        this.startGame();
-      }
-    }
-  }
-
-  showMenu(gameOver) {
-    const menu = this.findGameObject('MenuRoot');
-    const game = this.findGameObject('GameRoot');
-    const prompt = this.findGameObject('MenuPrompt');
-    const over = this.findGameObject('GameOverText');
-    if (menu) menu.active = true;
-    if (game) game.active = false;
-    if (prompt) prompt.active = !gameOver;
-    if (over) {
-      over.active = gameOver;
-      const text = over.getComponent(TextRenderer);
-      if (text) text.text = gameOver ? 'Game Over  —  Press SPACE' : '';
-    }
-  }
-
-  startGame() {
-    this.state = 'playing';
     this.score = 0;
     this.scoredPipes = {};
-
-    const menu = this.findGameObject('MenuRoot');
-    const game = this.findGameObject('GameRoot');
-    const flag = this.findGameObject('GameOverFlag');
-    if (menu) menu.active = false;
-    if (game) game.active = true;
-    if (flag) flag.active = false;
-
     this.updateScoreText();
-
-    const bird = this.findGameObject('Bird');
-    if (bird) {
-      bird.transform.localPosition.set(-100, 0);
-      bird.transform.localRotation = 0;
-      const body = bird.getComponent(Rigidbody2D);
-      if (body) {
-        body.velocity.set(0, 0);
-      }
-    }
-
     this.resetPipes();
   }
 
-  enterGameOver() {
-    this.state = 'gameover';
-    if (this.hitAudio) this.hitAudio.playOneShot();
-    this.showMenu(true);
+  onUpdate(_dt) {
+    this.movePipes(Time.deltaTime);
+    this.checkScoring();
   }
 
   resetPipes() {
-    const game = this.findGameObject('GameRoot');
-    if (!game) return;
-
     const gapOffsets = [40, -20, 80, 10];
     let index = 0;
-    for (const child of game.children) {
+
+    for (const child of this.gameObject.scene.rootObjects) {
       if (!child.name.startsWith('PipePair_')) continue;
       child.transform.localPosition.x = 180 + index * this.pipeSpacing;
       this.layoutPipePair(child, gapOffsets[index % gapOffsets.length]);
@@ -363,13 +390,10 @@ const FLAPPY_GAME_MANAGER_SOURCE = `export default class FlappyGameManager exten
   }
 
   movePipes(dt) {
-    const game = this.findGameObject('GameRoot');
-    if (!game) return;
-
     let rightmost = -999;
     const pairs = [];
 
-    for (const child of game.children) {
+    for (const child of this.gameObject.scene.rootObjects) {
       if (!child.name.startsWith('PipePair_')) continue;
       child.transform.localPosition.x -= this.pipeSpeed * dt;
       pairs.push(child);
@@ -389,12 +413,11 @@ const FLAPPY_GAME_MANAGER_SOURCE = `export default class FlappyGameManager exten
 
   checkScoring() {
     const bird = this.findGameObject('Bird');
-    const game = this.findGameObject('GameRoot');
-    if (!bird || !game) return;
+    if (!bird) return;
 
     const birdX = bird.transform.localPosition.x;
 
-    for (const child of game.children) {
+    for (const child of this.gameObject.scene.rootObjects) {
       if (!child.name.startsWith('PipePair_')) continue;
       if (this.scoredPipes[child.name]) continue;
       if (birdX > child.transform.localPosition.x + 26) {

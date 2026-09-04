@@ -9,6 +9,7 @@ import { useAssetStore } from '../stores/assetStore';
 import { useConsoleStore } from '../stores/consoleStore';
 import { useHistoryStore } from '../stores/historyStore';
 import { usePrefabStore } from '../stores/prefabStore';
+import { useSceneAssetStore } from '../stores/sceneAssetStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 
@@ -56,6 +57,7 @@ export function unloadCurrentProject(): void {
   useAssetStore.getState().clearAll();
   useScriptStore.getState().setScripts([]);
   usePrefabStore.getState().setPrefabs([]);
+  useSceneAssetStore.getState().clear();
   useSceneStore.setState({
     scene: null,
     playScene: null,

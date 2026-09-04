@@ -62,6 +62,10 @@ declare class Collision2D {
   readonly collider: BoxCollider2D;
 }
 
+declare class SceneManager {
+  static loadScene(nameOrId: string): void;
+}
+
 declare class Behaviour {
   gameObject: GameObject;
   transform: Transform;
@@ -70,6 +74,7 @@ declare class Behaviour {
   getBoxCollider2D(): BoxCollider2D | null;
   getAudioSource(): AudioSource | null;
   findGameObject(name: string): GameObject | null;
+  loadScene(nameOrId: string): void;
   onAwake(): void;
   onStart(): void;
   onUpdate(deltaTime: number): void;
@@ -108,6 +113,7 @@ declare module '@js-game-engine/script-api' {
     AudioSource,
     TextRenderer,
     Collision2D,
+    SceneManager,
     Input,
     Time,
     Debug,
@@ -125,6 +131,7 @@ declare module 'engine' {
     AudioSource,
     TextRenderer,
     Collision2D,
+    SceneManager,
     Input,
     Time,
     Debug,

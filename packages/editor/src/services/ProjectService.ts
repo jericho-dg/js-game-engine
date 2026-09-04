@@ -3,6 +3,7 @@ import {
   type AssetRecord,
   type ProjectData,
   type ScriptRecord,
+  type SerializedScene,
 } from '@js-game-engine/shared';
 import {
   Color,
@@ -22,6 +23,7 @@ import {
 import { db } from './db';
 import { useAssetStore } from '../stores/assetStore';
 import { usePrefabStore } from '../stores/prefabStore';
+import { useSceneAssetStore } from '../stores/sceneAssetStore';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { createDefaultPlayerMoveScript } from '../stores/scriptStore';
@@ -166,18 +168,48 @@ function getDemoJumpAssetId(scene: Scene, scripts: ScriptRecord[]): string | nul
   return null;
 }
 
+function migrateProjectData(data: ProjectData): { data: ProjectData; migrated: boolean } {
+  if (data.scenes && data.activeSceneId) {
+    return { data, migrated: false };
+  }
+
+  const sceneData = data.scene ?? { name: 'Main', rootObjects: [] };
+  const id = crypto.randomUUID();
+  const sceneName = sceneData.name || 'Main';
+  return {
+    data: {
+      ...data,
+      activeSceneId: id,
+      scenes: [{ id, name: sceneName, data: sceneData }],
+    },
+    migrated: true,
+  };
+}
+
+function wrapSceneInProjectData(
+  name: string,
+  scene: SerializedScene,
+  scripts: ScriptRecord[],
+  prefabs: import('@js-game-engine/shared').PrefabRecord[] = [],
+): ProjectData {
+  const id = crypto.randomUUID();
+  return {
+    version: PROJECT_VERSION,
+    name,
+    activeSceneId: id,
+    scenes: [{ id, name: scene.name || 'Main', data: scene }],
+    scene,
+    scripts,
+    prefabs,
+  };
+}
+
 function createBlankProjectData(name = 'Untitled Project'): ProjectData {
   const scene = new Scene('Main');
   const camera = scene.createGameObject('Main Camera');
   camera.addComponent(new Camera2D());
 
-  return {
-    version: PROJECT_VERSION,
-    name,
-    scene: serializeScene(scene),
-    scripts: [],
-    prefabs: [],
-  };
+  return wrapSceneInProjectData(name, serializeScene(scene), [], []);
 }
 
 function migrateDemoScene(scene: Scene): boolean {
@@ -245,13 +277,7 @@ function createDefaultProjectData(
   markerCollider.height = 24;
   markerCollider.isTrigger = true;
 
-  return {
-    version: PROJECT_VERSION,
-    name,
-    scene: serializeScene(scene),
-    scripts: [playerScript],
-    prefabs: [],
-  };
+  return wrapSceneInProjectData(name, serializeScene(scene), [playerScript], []);
 }
 
 function migrateFlappyScene(scene: Scene, scripts: ScriptRecord[]): boolean {
@@ -286,33 +312,52 @@ async function hydrateAndMigrateStoredProject(stored: {
   scripts: ScriptRecord[];
   prefabs: import('@js-game-engine/shared').PrefabRecord[];
 }> {
+  const { data: projectData, migrated: scenesMigrated } = migrateProjectData(stored.data);
+  const activeRecord = projectData.scenes!.find(
+    (record) => record.id === projectData.activeSceneId,
+  )!;
+
   const jumpAssetId = getDemoJumpAssetId(
-    deserializeScene(stored.data.scene),
-    stored.data.scripts ?? [],
+    deserializeScene(activeRecord.data),
+    projectData.scripts ?? [],
   );
   if (jumpAssetId) {
     await ensureDefaultDemoAssets(stored.id, jumpAssetId);
   }
 
   await useAssetStore.getState().loadForProject(stored.id);
-  const scene = deserializeScene(stored.data.scene);
-  let scripts = migrateLoadedProject(scene, stored.data.scripts ?? []);
+  const scene = deserializeScene(activeRecord.data);
+  let scripts = migrateLoadedProject(scene, projectData.scripts ?? []);
   const sceneMigrated = migrateDemoScene(scene) || migrateFlappyScene(scene, scripts);
   hydrateSceneAssets(scene);
 
   const scriptsChanged =
-    JSON.stringify(scripts) !== JSON.stringify(stored.data.scripts ?? []);
+    JSON.stringify(scripts) !== JSON.stringify(projectData.scripts ?? []);
   const shouldRenameDemo = stored.name === 'Untitled Project' && scene.findByName('Player');
 
+  let nextProjectData = projectData;
+  if (sceneMigrated || scriptsChanged) {
+    const activeId = nextProjectData.activeSceneId!;
+    nextProjectData = {
+      ...nextProjectData,
+      scenes: nextProjectData.scenes!.map((record) =>
+        record.id === activeId
+          ? { ...record, name: scene.name, data: serializeScene(scene) }
+          : record,
+      ),
+      scene: serializeScene(scene),
+      scripts,
+    };
+  }
+
   let nextStored = stored;
-  if (sceneMigrated || scriptsChanged || shouldRenameDemo) {
+  if (scenesMigrated || sceneMigrated || scriptsChanged || shouldRenameDemo) {
     nextStored = {
       ...stored,
       name: shouldRenameDemo ? 'Jump Demo' : stored.name,
       data: {
-        ...stored.data,
-        scene: serializeScene(scene),
-        scripts,
+        ...nextProjectData,
+        name: shouldRenameDemo ? 'Jump Demo' : nextProjectData.name,
       },
       updatedAt: Date.now(),
     };
@@ -321,6 +366,10 @@ async function hydrateAndMigrateStoredProject(stored: {
 
   const prefabs = nextStored.data.prefabs ?? [];
   usePrefabStore.getState().setPrefabs(prefabs);
+  useSceneAssetStore.getState().setScenes(
+    nextStored.data.scenes!,
+    nextStored.data.activeSceneId!,
+  );
 
   return {
     stored: nextStored,
@@ -441,11 +490,17 @@ export class ProjectService {
   }
 
   async save(scene: Scene, projectId: string, projectName: string): Promise<void> {
+    const sceneAssetStore = useSceneAssetStore.getState();
+    sceneAssetStore.updateActiveSceneData(serializeScene(scene));
+
     const scripts = useScriptStore.getState().scripts;
     const prefabs = usePrefabStore.getState().prefabs;
+    const { scenes, activeSceneId } = sceneAssetStore;
     const data: ProjectData = {
       version: PROJECT_VERSION,
       name: projectName,
+      activeSceneId: activeSceneId ?? undefined,
+      scenes,
       scene: serializeScene(scene),
       scripts,
       prefabs,

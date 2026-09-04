@@ -113,10 +113,19 @@ export interface SerializedScene {
   rootObjects: SerializedGameObject[];
 }
 
+export interface SceneRecord {
+  id: string;
+  name: string;
+  data: SerializedScene;
+}
+
 export interface ProjectData {
   version: string;
   name: string;
-  scene: SerializedScene;
+  /** @deprecated Use activeSceneId + scenes. Kept for legacy projects and export compat. */
+  scene?: SerializedScene;
+  activeSceneId?: string;
+  scenes?: SceneRecord[];
   scripts: ScriptRecord[];
   prefabs?: PrefabRecord[];
 }

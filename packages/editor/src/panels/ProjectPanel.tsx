@@ -8,6 +8,7 @@ import { Panel } from '../components/Panel';
 import { projectService } from '../services/ProjectService';
 import { useAssetStore } from '../stores/assetStore';
 import { usePrefabStore } from '../stores/prefabStore';
+import { useSceneAssetStore } from '../stores/sceneAssetStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { useSceneStore } from '../stores/sceneStore';
 
@@ -17,12 +18,17 @@ export function ProjectPanel() {
   const getThumbnailUrl = useAssetStore((s) => s.getThumbnailUrl);
   const prefabs = usePrefabStore((s) => s.prefabs);
   const deletePrefab = usePrefabStore((s) => s.deletePrefab);
+  const scenes = useSceneAssetStore((s) => s.scenes);
+  const activeSceneId = useSceneAssetStore((s) => s.activeSceneId);
   const projectId = useSceneStore((s) => s.projectId);
   const scene = useSceneStore((s) => s.scene);
   const selectedId = useSceneStore((s) => s.selectedId);
   const markSceneChanged = useSceneStore((s) => s.markSceneChanged);
   const beginSceneChange = useSceneStore((s) => s.beginSceneChange);
   const selectObject = useSceneStore((s) => s.selectObject);
+  const switchScene = useSceneStore((s) => s.switchScene);
+  const createScene = useSceneStore((s) => s.createScene);
+  const deleteScene = useSceneStore((s) => s.deleteScene);
   const openSaveDialog = usePrefabStore((s) => s.openSaveDialog);
   const instantiatePrefab = useSceneStore((s) => s.instantiatePrefab);
   const scripts = useScriptStore((s) => s.scripts);
@@ -158,6 +164,53 @@ export function ProjectPanel() {
                     title="Delete asset"
                     onClick={() => void projectService.deleteAsset(asset.id, scene)}
                     className="absolute top-1 right-1 rounded bg-[#2d2d2d]/90 px-1.5 py-0.5 text-[10px] text-[#cccccc] opacity-0 transition-opacity hover:bg-[#c62828] hover:text-white group-hover:opacity-100"
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-[#3c3c3c] p-2">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-medium text-[#cccccc]">Scenes</h3>
+            <button
+              type="button"
+              onClick={() => createScene()}
+              className="rounded px-2 py-0.5 text-xs text-[#cccccc] hover:bg-[#3c3c3c]"
+            >
+              + New
+            </button>
+          </div>
+          {scenes.length === 0 ? (
+            <p className="text-xs text-[#858585]">No scenes yet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {scenes.map((sceneRecord) => (
+                <li
+                  key={sceneRecord.id}
+                  className={`flex items-center justify-between rounded border px-2 py-1 ${
+                    sceneRecord.id === activeSceneId
+                      ? 'border-[#007acc] bg-[#252526]'
+                      : 'border-[#3c3c3c]'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    title="Open scene"
+                    onClick={() => switchScene(sceneRecord.id)}
+                    className="truncate text-left text-xs text-[#cccccc] hover:text-white"
+                  >
+                    {sceneRecord.name}
+                  </button>
+                  <button
+                    type="button"
+                    title={scenes.length <= 1 ? 'Cannot delete the last scene' : 'Delete scene'}
+                    disabled={scenes.length <= 1}
+                    onClick={() => deleteScene(sceneRecord.id)}
+                    className="ml-2 shrink-0 text-[10px] text-[#858585] hover:text-[#ef5350] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Delete
                   </button>

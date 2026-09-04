@@ -7,8 +7,9 @@ import { serializeScene } from '@js-game-engine/engine';
 import JSZip from 'jszip';
 import { db } from './db';
 import { compileScript } from '../scripting/ScriptCompiler';
-import { collectSceneScriptIds, getPlayBlockers } from '../scripting/validateScripts';
+import { collectProjectSceneScriptIds, getPlayBlockers } from '../scripting/validateScripts';
 import { useScriptStore } from '../stores/scriptStore';
+import { useSceneAssetStore } from '../stores/sceneAssetStore';
 import {
   extensionForMime,
   downloadBlob,
@@ -122,7 +123,12 @@ export async function exportStandaloneGame(
     throw new Error(blockers.join('\n'));
   }
 
-  const scriptIds = collectSceneScriptIds(scene);
+  const sceneAssetStore = useSceneAssetStore.getState();
+  sceneAssetStore.updateActiveSceneData(serializeScene(scene));
+  const scenes = sceneAssetStore.scenes;
+  const activeSceneId = sceneAssetStore.activeSceneId ?? undefined;
+
+  const scriptIds = collectProjectSceneScriptIds(scenes);
   const compiledScripts: StandaloneGameManifest['scripts'] = [];
 
   for (const scriptId of scriptIds) {
@@ -153,6 +159,8 @@ export async function exportStandaloneGame(
     exportVersion: STANDALONE_EXPORT_VERSION,
     name: projectName,
     scene: serializeScene(scene),
+    activeSceneId,
+    scenes,
     scripts: compiledScripts,
     assets,
   };

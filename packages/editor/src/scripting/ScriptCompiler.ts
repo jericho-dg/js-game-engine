@@ -7,6 +7,7 @@ import {
   Debug,
   Input,
   Rigidbody2D,
+  SceneManager,
   AudioSource,
   TextRenderer,
   Time,
@@ -18,7 +19,7 @@ let esbuildReady: Promise<void> | null = null;
 let buildQueue: Promise<unknown> = Promise.resolve();
 const compileCache = new Map<string, new () => Behaviour>();
 /** Bump when ENGINE_SHIM changes so cached script classes are invalidated. */
-const COMPILE_VERSION = 4;
+const COMPILE_VERSION = 5;
 
 export function initScriptCompiler(): Promise<void> {
   if (!esbuildReady) {
@@ -45,6 +46,9 @@ export class Behaviour {
   findGameObject(name) {
     const scene = this.gameObject?.scene;
     return scene ? scene.findByName(name) : null;
+  }
+  loadScene(nameOrId) {
+    globalThis.__JGE__.SceneManager.loadScene(nameOrId);
   }
   getRigidbody2D() {
     if (!this.gameObject) return null;
@@ -78,6 +82,7 @@ export const BoxCollider2D = globalThis.__JGE__.BoxCollider2D;
 export const Rigidbody2D = globalThis.__JGE__.Rigidbody2D;
 export const AudioSource = globalThis.__JGE__.AudioSource;
 export const TextRenderer = globalThis.__JGE__.TextRenderer;
+export const SceneManager = globalThis.__JGE__.SceneManager;
 export const Input = globalThis.__JGE__.Input;
 export const Time = globalThis.__JGE__.Time;
 export const Debug = globalThis.__JGE__.Debug;
@@ -181,6 +186,7 @@ function installEngineGlobals(): void {
     Rigidbody2D,
     BoxCollider2D,
     Collision2D,
+    SceneManager,
     AudioSource,
     TextRenderer,
   };

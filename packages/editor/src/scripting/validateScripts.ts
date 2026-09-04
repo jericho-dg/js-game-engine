@@ -1,5 +1,5 @@
 import { Scene, ScriptComponent, type Behaviour } from '@js-game-engine/engine';
-import type { ScriptRecord } from '@js-game-engine/shared';
+import type { ScriptRecord, SerializedGameObject, SerializedScene } from '@js-game-engine/shared';
 import { compileScriptRecord, resetBuildQueue } from './ScriptCompiler';
 import { isCompileTimeoutError, withCompileTimeout } from './compileTimeout';
 import {
@@ -39,6 +39,40 @@ export function collectSceneScriptIds(scene: Scene): string[] {
     collectObjectScriptIds(root, ids);
   }
   return [...ids];
+}
+
+export function collectSerializedSceneScriptIds(scene: SerializedScene): string[] {
+  const ids = new Set<string>();
+  for (const root of scene.rootObjects) {
+    collectSerializedObjectScriptIds(root, ids);
+  }
+  return [...ids];
+}
+
+export function collectProjectSceneScriptIds(
+  scenes: Array<{ data: SerializedScene }>,
+): string[] {
+  const ids = new Set<string>();
+  for (const record of scenes) {
+    for (const root of record.data.rootObjects) {
+      collectSerializedObjectScriptIds(root, ids);
+    }
+  }
+  return [...ids];
+}
+
+function collectSerializedObjectScriptIds(
+  obj: SerializedGameObject,
+  ids: Set<string>,
+): void {
+  for (const component of obj.components) {
+    if (component.type === 'ScriptComponent' && component.scriptAssetId) {
+      ids.add(component.scriptAssetId);
+    }
+  }
+  for (const child of obj.children) {
+    collectSerializedObjectScriptIds(child, ids);
+  }
 }
 
 function collectObjectScriptIds(

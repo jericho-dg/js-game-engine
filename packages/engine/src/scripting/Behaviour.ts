@@ -3,6 +3,7 @@ import { Rigidbody2D } from '../components/Rigidbody2D';
 import { AudioSource } from '../components/AudioSource';
 import { TextRenderer } from '../components/TextRenderer';
 import type { Collision2D } from '../physics/Collision2D';
+import { SceneManager } from '../core/SceneManager';
 import type { GameObject } from '../core/GameObject';
 import type { Transform } from '../core/Transform';
 
@@ -30,6 +31,10 @@ export class Behaviour {
 
   findGameObject(name: string): GameObject | null {
     return this.gameObject.scene?.findByName(name) ?? null;
+  }
+
+  loadScene(nameOrId: string): void {
+    SceneManager.loadScene(nameOrId);
   }
 
   getTextRenderer(): TextRenderer | null {

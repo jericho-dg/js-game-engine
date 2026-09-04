@@ -10,6 +10,8 @@ export interface StandaloneGameManifest {
   exportVersion: string;
   name: string;
   scene: import('./project').SerializedScene;
+  activeSceneId?: string;
+  scenes?: import('./project').SceneRecord[];
   scripts: StandaloneCompiledScript[];
   assets: import('./project').ProjectExportAsset[];
 }
