@@ -178,4 +178,6 @@ export interface ProjectExportManifest {
   exportVersion: string;
   project: ProjectData;
   assets: ProjectExportAsset[];
+  /** Local project updatedAt at export time, used for cloud conflict resolution. */
+  updatedAt?: number;
 }

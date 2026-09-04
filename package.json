@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @js-game-engine/editor",
+    "dev:cloud-api": "npm run dev -w @js-game-engine/cloud-api",
     "build:player": "npm run build -w @js-game-engine/player",
     "build": "npm run build:player && npm run build -w @js-game-engine/editor",
     "typecheck": "npm run typecheck --workspaces --if-present",

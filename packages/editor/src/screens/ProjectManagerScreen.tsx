@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CloudProjectSummary } from '@js-game-engine/shared';
 import type { ProjectSummary } from '../services/ProjectService';
 import { projectService } from '../services/ProjectService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -10,8 +9,10 @@ import {
   loadProjectIntoEditor,
 } from '../services/projectLoader';
 import { NewProjectDialog } from '../components/NewProjectDialog';
-import { DeleteProjectDialog } from '../components/DeleteProjectDialog';
-import { CloudAccountBar, SyncStatusBadge } from '../components/CloudAccountBar';
+import { DeleteProjectDialog, type DeleteProjectScope } from '../components/DeleteProjectDialog';
+import { AccountBar } from '../components/AccountBar';
+import { SyncStatusBar } from '../components/SyncStatusBar';
+import { useAccountStore } from '../stores/accountStore';
 import { useCloudSyncStore } from '../stores/cloudSyncStore';
 import { useConsoleStore } from '../stores/consoleStore';
 
@@ -23,22 +24,12 @@ export function ProjectManagerScreen() {
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cloudProjects, setCloudProjects] = useState<CloudProjectSummary[]>([]);
-  const [orphanCloudProjects, setOrphanCloudProjects] = useState<CloudProjectSummary[]>([]);
-  const isConnected = useCloudSyncStore((s) => s.isConnected);
 
   const refreshProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setProjects(await projectService.listProjects());
-      if (useCloudSyncStore.getState().isConnected) {
-        setCloudProjects(await cloudSyncService.listCloudProjects());
-        setOrphanCloudProjects(await cloudSyncService.listOrphanCloudProjects());
-      } else {
-        setCloudProjects([]);
-        setOrphanCloudProjects([]);
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -47,15 +38,63 @@ export function ProjectManagerScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void refreshProjects();
-  }, [refreshProjects]);
+  const isSignedIn = useAccountStore((s) => s.isSignedIn());
+  const usesRemoteCloud = cloudSyncService.usesRemoteCloud();
 
-  const openProject = async (projectId: string) => {
-    setBusyId(projectId);
+  const showCloudDeleteOptions = usesRemoteCloud && isSignedIn;
+  const remoteOnlyLocalDelete = usesRemoteCloud && !isSignedIn;
+
+  const resyncFromCloud = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    useCloudSyncStore.getState().refreshMode();
+    try {
+      if (cloudSyncService.canSync()) {
+        await cloudSyncService.resyncAll();
+      }
+      await refreshProjects();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setLoading(false);
+    }
+  }, [refreshProjects, isSignedIn]);
+
+  const retrySync = useCallback(async () => {
     setError(null);
     try {
-      await loadProjectIntoEditor(projectId);
+      await cloudSyncService.retryPending();
+      await refreshProjects();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+    }
+  }, [refreshProjects]);
+
+  useEffect(() => {
+    void (async () => {
+      if (usesRemoteCloud && useAccountStore.getState().token) {
+        await useAccountStore.getState().validateSession();
+      }
+      await resyncFromCloud();
+    })();
+  }, [resyncFromCloud, usesRemoteCloud]);
+
+  const deleteProject = async (project: ProjectSummary, scope: DeleteProjectScope) => {
+    setBusyId(project.id);
+    setError(null);
+    try {
+      await deleteProjectById(project.id, {
+        deleteCloud: scope === 'everywhere',
+      });
+      await refreshProjects();
+      setProjectToDelete(null);
+      useConsoleStore.getState().log(
+        'log',
+        scope === 'everywhere'
+          ? `Deleted project everywhere: ${project.name}`
+          : `Removed project from this device: ${project.name}`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -64,14 +103,11 @@ export function ProjectManagerScreen() {
     }
   };
 
-  const deleteProject = async (project: ProjectSummary) => {
-    setBusyId(project.id);
+  const openProject = async (projectId: string) => {
+    setBusyId(projectId);
     setError(null);
     try {
-      await deleteProjectById(project.id);
-      await refreshProjects();
-      setProjectToDelete(null);
-      useConsoleStore.getState().log('log', `Deleted project: ${project.name}`);
+      await loadProjectIntoEditor(projectId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -94,101 +130,60 @@ export function ProjectManagerScreen() {
     }
   };
 
-  const pushProject = async (project: ProjectSummary) => {
-    setBusyId(project.id);
-    setError(null);
-    try {
-      await cloudSyncService.pushProject(project.id);
-      await refreshProjects();
-      useConsoleStore.getState().log('log', `Pushed "${project.name}" to cloud.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const pullProject = async (project: ProjectSummary) => {
-    setBusyId(project.id);
-    setError(null);
-    try {
-      await cloudSyncService.pullProject(project.id);
-      await refreshProjects();
-      useConsoleStore.getState().log('log', `Pulled "${project.name}" from cloud.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const importFromCloud = async (cloudProject: CloudProjectSummary) => {
-    setBusyId(cloudProject.id);
-    setError(null);
-    try {
-      const localId = await cloudSyncService.importCloudProject(cloudProject.id);
-      await refreshProjects();
-      await loadProjectIntoEditor(localId);
-      useConsoleStore.getState().log('log', `Imported "${cloudProject.name}" from cloud.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e]">
       <header className="border-b border-[#3c3c3c] bg-[#2d2d2d] px-6 py-4">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-[#cccccc]">js-game-engine</h1>
-            <p className="mt-0.5 text-xs text-[#858585]">Project Manager</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="text-xs text-[#858585]">Project Manager</p>
+              <SyncStatusBar onRetry={() => void retrySync()} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <CloudAccountBar onSyncChange={() => void refreshProjects()} />
-            <ActionButton
-              label="New Project"
-              primary
-              onClick={() => setIsNewDialogOpen(true)}
-              disabled={busyId !== null}
-            />
-            <ActionButton
-              label="Import"
-              onClick={() => importInputRef.current?.click()}
-              disabled={busyId !== null}
-            />
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".zip,application/zip"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (file) void importProject(file);
-              }}
-            />
+          <div className="flex items-center gap-3">
+            <AccountBar />
           </div>
         </div>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium uppercase tracking-wide text-[#858585]">
               Projects
             </h2>
-            <button
-              type="button"
-              onClick={() => void refreshProjects()}
-              className="text-xs text-[#858585] transition-colors hover:text-[#cccccc]"
-            >
-              Refresh
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => void resyncFromCloud()}
+                className="rounded px-3 py-1.5 text-xs text-[#858585] transition-colors hover:bg-[#3c3c3c] hover:text-[#cccccc]"
+              >
+                Refresh
+              </button>
+              <ActionButton
+                label="New Project"
+                primary
+                onClick={() => setIsNewDialogOpen(true)}
+                disabled={busyId !== null}
+              />
+              <ActionButton
+                label="Import"
+                onClick={() => importInputRef.current?.click()}
+                disabled={busyId !== null}
+              />
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".zip,application/zip"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void importProject(file);
+                }}
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -203,40 +198,12 @@ export function ProjectManagerScreen() {
                   project={project}
                   busy={busyId === project.id}
                   disabled={busyId !== null && busyId !== project.id}
-                  showSync={isConnected}
                   onOpen={() => void openProject(project.id)}
                   onDelete={() => setProjectToDelete(project)}
-                  onPush={() => void pushProject(project)}
-                  onPull={() => void pullProject(project)}
                 />
               ))}
             </div>
           )}
-
-          {isConnected && orphanCloudProjects.length > 0 ? (
-            <div className="mt-8">
-              <h2 className="mb-4 text-sm font-medium uppercase tracking-wide text-[#858585]">
-                Cloud Library
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {orphanCloudProjects.map((cloudProject) => (
-                  <CloudProjectCard
-                    key={cloudProject.id}
-                    project={cloudProject}
-                    busy={busyId === cloudProject.id}
-                    disabled={busyId !== null && busyId !== cloudProject.id}
-                    onImport={() => void importFromCloud(cloudProject)}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {isConnected && cloudProjects.length === 0 && projects.length > 0 ? (
-            <p className="mt-6 text-xs text-[#858585]">
-              Push a local project to cloud to back it up or open it on another device.
-            </p>
-          ) : null}
 
           {error ? (
             <p className="mt-4 rounded border border-[#5a1d1d] bg-[#3a1f1f] px-3 py-2 text-xs text-[#f48771]">
@@ -256,10 +223,12 @@ export function ProjectManagerScreen() {
 
       <DeleteProjectDialog
         project={projectToDelete}
+        showCloudOptions={showCloudDeleteOptions}
+        remoteOnlyLocalDelete={remoteOnlyLocalDelete}
         isDeleting={projectToDelete !== null && busyId === projectToDelete.id}
         onClose={() => setProjectToDelete(null)}
-        onConfirm={() => {
-          if (projectToDelete) void deleteProject(projectToDelete);
+        onConfirm={(scope) => {
+          if (projectToDelete) void deleteProject(projectToDelete, scope);
         }}
       />
     </div>
@@ -288,20 +257,14 @@ function ProjectCard({
   project,
   busy,
   disabled,
-  showSync,
   onOpen,
   onDelete,
-  onPush,
-  onPull,
 }: {
   project: ProjectSummary;
   busy: boolean;
   disabled: boolean;
-  showSync: boolean;
   onOpen: () => void;
   onDelete: () => void;
-  onPush: () => void;
-  onPull: () => void;
 }) {
   return (
     <article className="flex flex-col rounded-lg border border-[#3c3c3c] bg-[#252526]">
@@ -310,74 +273,24 @@ function ProjectCard({
           {project.name.slice(0, 1).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-medium text-[#cccccc]">{project.name}</h3>
-            {showSync && project.syncStatus ? (
-              <SyncStatusBadge status={project.syncStatus} />
-            ) : null}
-          </div>
+          <h3 className="truncate text-sm font-medium text-[#cccccc]">{project.name}</h3>
           <p className="text-xs text-[#858585]">
             Modified {formatUpdatedAt(project.updatedAt)}
           </p>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-4 py-3">
+      <div className="flex gap-2 px-4 py-3">
         <ActionButton
           label={busy ? 'Opening…' : 'Open'}
           primary
           disabled={disabled || busy}
           onClick={onOpen}
         />
-        {showSync && project.syncStatus === 'pending' ? (
-          <ActionButton label="Push" disabled={disabled || busy} onClick={onPush} />
-        ) : null}
-        {showSync && project.syncStatus === 'behind' ? (
-          <ActionButton label="Pull" disabled={disabled || busy} onClick={onPull} />
-        ) : null}
-        {showSync && project.syncStatus === 'local' ? (
-          <ActionButton label="Push" disabled={disabled || busy} onClick={onPush} />
-        ) : null}
         <ActionButton
           label="Delete"
           disabled={disabled || busy}
           onClick={onDelete}
-        />
-      </div>
-    </article>
-  );
-}
-
-function CloudProjectCard({
-  project,
-  busy,
-  disabled,
-  onImport,
-}: {
-  project: CloudProjectSummary;
-  busy: boolean;
-  disabled: boolean;
-  onImport: () => void;
-}) {
-  return (
-    <article className="flex flex-col rounded-lg border border-[#3c3c3c] bg-[#252526]">
-      <div className="flex items-center gap-3 border-b border-[#3c3c3c] px-4 py-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded bg-[#1a3557] text-xs font-semibold text-[#64b5f6]">
-          ☁
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-medium text-[#cccccc]">{project.name}</h3>
-          <p className="text-xs text-[#858585]">
-            Cloud · {formatUpdatedAt(project.updatedAt)}
-          </p>
-        </div>
-      </div>
-      <div className="flex gap-2 px-4 py-3">
-        <ActionButton
-          label={busy ? 'Importing…' : 'Import'}
-          primary
-          disabled={disabled || busy}
-          onClick={onImport}
         />
       </div>
     </article>

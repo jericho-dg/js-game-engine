@@ -8,6 +8,7 @@ import {
 import { Scene, deserializeScene, serializeScene, AudioSystem } from '@js-game-engine/engine';
 import { db } from './db';
 import { hydrateSceneAssets, projectService } from './ProjectService';
+import { cloudSyncService } from './cloudSyncService';
 import { useAssetStore } from '../stores/assetStore';
 import { useConsoleStore } from '../stores/consoleStore';
 import { useHistoryStore } from '../stores/historyStore';
@@ -207,6 +208,8 @@ async function importProjectZipIntoProject(
   });
 
   useHistoryStore.getState().resetHistory();
+
+  await cloudSyncService.syncProject(projectId, { background: true });
 
   return { projectName };
 }

@@ -133,10 +133,13 @@ export async function returnToProjectManager(): Promise<void> {
   useAppStore.getState().showProjectManager();
 }
 
-export async function deleteProjectById(projectId: string): Promise<void> {
+export async function deleteProjectById(
+  projectId: string,
+  options?: { deleteCloud?: boolean },
+): Promise<void> {
   const { projectId: openProjectId } = useSceneStore.getState();
   if (openProjectId === projectId) {
     unloadCurrentProject();
   }
-  await projectService.deleteProject(projectId);
+  await projectService.deleteProject(projectId, options);
 }

@@ -4,7 +4,7 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 ## Status
 
-**Phase 8 — Cloud Sync** in progress. Connect a cloud account from the project manager to push, pull, and import projects. The first implementation uses a simulated cloud store in IndexedDB; a real remote API is planned next.
+**Phase 8 — Cloud Sync** complete. Projects sync automatically to cloud storage on create, save, import, and delete.
 
 **Phase 7 — Project Management** complete. Multi-scene projects, project manager, Flappy Bird demo, and TextRenderer are included.
 
@@ -23,14 +23,19 @@ npm run dev
 
 Open the URL printed by Vite (typically `http://localhost:5173`). The **Project Manager** opens first — create or open a project to enter the editor.
 
-## Phase 8 features (in progress)
+## Phase 8 features
 
-### Cloud sync (simulated)
-- **Connect Cloud** in the project manager header (local session; no real auth yet)
-- **Push** uploads a local project + assets to a simulated cloud table in IndexedDB
-- **Pull** restores the cloud copy over the linked local project
-- Sync badges: **Local only**, **Synced**, **Needs push**, **Needs pull**
-- **Cloud Library** lists cloud-only projects you can import locally
+### Cloud sync
+- Projects sync to cloud automatically on create, save, import, and delete
+- Opening the project manager merges local and cloud copies using `updatedAt` conflict resolution
+- **Sync status** in the project manager and editor toolbar shows last sync time and pending/failed state with **Retry**
+- Failed syncs are queued locally; local saves always succeed even when cloud is unreachable
+
+### Remote cloud API (optional)
+  1. Copy `packages/editor/.env.example` to `packages/editor/.env` and set `VITE_CLOUD_API_URL=/cloud-api`
+  2. Run `npm run dev:cloud-api` in one terminal and `npm run dev` in another
+  3. Sign up or sign in from the project manager header
+  4. Delete dialog offers **Remove from this device** vs **Delete everywhere** when signed in
 
 ## Phase 7 features
 

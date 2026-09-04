@@ -1,51 +1,97 @@
-import type {
-  CloudProjectSummary,
-  ProjectSyncStatus,
-} from '@js-game-engine/shared';
+import type { CloudProjectSummary } from '@js-game-engine/shared';
+import { getCloudBackend, isRemoteCloudEnabled } from './cloud/getCloudBackend';
+import { useAccountStore } from '../stores/accountStore';
+import { useCloudSyncStore } from '../stores/cloudSyncStore';
 import { db } from './db';
 
-function computeSyncStatus(
-  localUpdatedAt: number,
-  lastSyncedAt: number | undefined,
-  cloudUpdatedAt: number | undefined,
-): ProjectSyncStatus {
-  if (!cloudUpdatedAt || !lastSyncedAt) return 'local';
-  if (localUpdatedAt > lastSyncedAt) return 'pending';
-  if (cloudUpdatedAt > lastSyncedAt) return 'behind';
-  return 'synced';
+function isCloudSyncAvailable(): boolean {
+  if (!isRemoteCloudEnabled()) return true;
+  return useAccountStore.getState().isSignedIn();
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes('network') || message.includes('fetch');
+  }
+  return false;
+}
+
+function syncErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return 'Cloud sync unavailable. Changes are saved locally and will retry when you refresh or sign in.';
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 export class CloudSyncService {
-  async getSyncStatus(projectId: string): Promise<ProjectSyncStatus> {
-    const stored = await db.projects.get(projectId);
-    if (!stored?.cloudId) return 'local';
+  private resyncPromise: Promise<void> | null = null;
+  private flushPromise: Promise<void> | null = null;
+  private pendingProjectIds = new Set<string>();
 
-    const cloud = await db.cloudProjects.get(stored.cloudId);
-    if (!cloud) return 'local';
-
-    return computeSyncStatus(stored.updatedAt, stored.lastSyncedAt, cloud.updatedAt);
+  canSync(): boolean {
+    return isCloudSyncAvailable();
   }
 
-  async listCloudProjects(): Promise<CloudProjectSummary[]> {
-    const rows = await db.cloudProjects.orderBy('updatedAt').reverse().toArray();
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      updatedAt: row.updatedAt,
-    }));
+  getMode(): 'simulated' | 'remote' {
+    return isRemoteCloudEnabled() ? 'remote' : 'simulated';
   }
 
-  async listOrphanCloudProjects(): Promise<CloudProjectSummary[]> {
-    const cloud = await this.listCloudProjects();
-    const linked = new Set(
-      (await db.projects.toArray())
-        .map((project) => project.cloudId)
-        .filter((id): id is string => Boolean(id)),
-    );
-    return cloud.filter((project) => !linked.has(project.id));
+  usesRemoteCloud(): boolean {
+    return isRemoteCloudEnabled();
   }
 
-  async pushProject(projectId: string): Promise<void> {
+  getPendingCount(): number {
+    return this.pendingProjectIds.size;
+  }
+
+  private updateSyncAvailabilityState(): void {
+    useCloudSyncStore.getState().refreshMode();
+  }
+
+  private updatePendingState(errorMessage: string | null = null): void {
+    const count = this.pendingProjectIds.size;
+    if (count > 0) {
+      useCloudSyncStore.getState().setPending(
+        count,
+        errorMessage ??
+          `${count} project${count === 1 ? '' : 's'} waiting to sync.`,
+      );
+    } else if (!errorMessage) {
+      const store = useCloudSyncStore.getState();
+      if (store.status !== 'syncing') {
+        useCloudSyncStore.getState().clearError();
+      }
+    }
+  }
+
+  async syncProject(
+    projectId: string,
+    options?: { background?: boolean },
+  ): Promise<void> {
+    if (!isCloudSyncAvailable()) {
+      this.updateSyncAvailabilityState();
+      return;
+    }
+
+    useCloudSyncStore.getState().setSyncing();
+    try {
+      await this.pushProjectToCloud(projectId);
+      this.pendingProjectIds.delete(projectId);
+      useCloudSyncStore.getState().setSynced();
+      this.updatePendingState();
+    } catch (error) {
+      this.pendingProjectIds.add(projectId);
+      const message = syncErrorMessage(error);
+      useCloudSyncStore.getState().setError(message, this.pendingProjectIds.size);
+      if (!options?.background) {
+        throw new Error(message);
+      }
+    }
+  }
+
+  private async pushProjectToCloud(projectId: string): Promise<void> {
     const stored = await db.projects.get(projectId);
     if (!stored) {
       throw new Error(`Project not found: ${projectId}`);
@@ -53,118 +99,183 @@ export class CloudSyncService {
 
     const cloudId = stored.cloudId ?? crypto.randomUUID();
     const now = Date.now();
-    const assets = await db.assets.where('projectId').equals(projectId).toArray();
 
-    await db.cloudProjects.put({
-      id: cloudId,
-      name: stored.name,
-      data: stored.data,
-      updatedAt: now,
-    });
-
-    await db.cloudAssets.where('cloudProjectId').equals(cloudId).delete();
-    for (const asset of assets) {
-      await db.cloudAssets.put({
-        id: asset.id,
-        cloudProjectId: cloudId,
-        name: asset.name,
-        type: asset.type,
-        mimeType: asset.mimeType,
-        width: asset.width,
-        height: asset.height,
-        blob: asset.blob,
-      });
-    }
+    await getCloudBackend().syncProjectFromLocal(projectId, cloudId);
 
     await db.projects.put({
       ...stored,
       cloudId,
       lastSyncedAt: now,
-      updatedAt: stored.updatedAt,
     });
   }
 
-  async pullProject(projectId: string): Promise<void> {
-    const stored = await db.projects.get(projectId);
-    if (!stored?.cloudId) {
-      throw new Error('Project has not been pushed to the cloud yet.');
+  async flushPending(): Promise<void> {
+    if (!isCloudSyncAvailable() || this.pendingProjectIds.size === 0) {
+      this.updateSyncAvailabilityState();
+      return;
     }
 
-    const cloud = await db.cloudProjects.get(stored.cloudId);
-    if (!cloud) {
-      throw new Error('Cloud copy not found.');
+    if (this.flushPromise) {
+      return this.flushPromise;
     }
 
-    const cloudAssets = await db.cloudAssets
-      .where('cloudProjectId')
-      .equals(stored.cloudId)
-      .toArray();
-
-    await db.assets.where('projectId').equals(projectId).delete();
-    for (const asset of cloudAssets) {
-      await db.assets.put({
-        id: asset.id,
-        projectId,
-        name: asset.name,
-        type: asset.type,
-        mimeType: asset.mimeType,
-        width: asset.width,
-        height: asset.height,
-        blob: asset.blob,
-      });
-    }
-
-    const now = Date.now();
-    await db.projects.put({
-      ...stored,
-      name: cloud.name,
-      data: cloud.data,
-      updatedAt: cloud.updatedAt,
-      lastSyncedAt: now,
+    this.flushPromise = this.runFlushPending().finally(() => {
+      this.flushPromise = null;
     });
+
+    return this.flushPromise;
+  }
+
+  private async runFlushPending(): Promise<void> {
+    useCloudSyncStore.getState().setSyncing();
+    const projectIds = [...this.pendingProjectIds];
+    let lastError: string | null = null;
+
+    for (const projectId of projectIds) {
+      try {
+        await this.pushProjectToCloud(projectId);
+        this.pendingProjectIds.delete(projectId);
+      } catch (error) {
+        lastError = syncErrorMessage(error);
+      }
+    }
+
+    if (this.pendingProjectIds.size === 0) {
+      useCloudSyncStore.getState().setSynced();
+      return;
+    }
+
+    useCloudSyncStore.getState().setError(
+      lastError ?? 'Some projects could not be synced.',
+      this.pendingProjectIds.size,
+    );
+  }
+
+  async retryPending(): Promise<void> {
+    useCloudSyncStore.getState().clearError();
+    await this.flushPending();
+    if (this.pendingProjectIds.size === 0) {
+      await this.resyncAll();
+    }
+  }
+
+  async resyncAll(): Promise<void> {
+    if (!isCloudSyncAvailable()) {
+      this.updateSyncAvailabilityState();
+      return;
+    }
+
+    if (this.resyncPromise) {
+      return this.resyncPromise;
+    }
+
+    this.resyncPromise = this.runResyncAll().finally(() => {
+      this.resyncPromise = null;
+    });
+
+    return this.resyncPromise;
+  }
+
+  private async runResyncAll(): Promise<void> {
+    useCloudSyncStore.getState().setSyncing();
+
+    try {
+      await this.flushPending();
+
+      const backend = getCloudBackend();
+      const cloudProjects = await backend.listProjects();
+      const cloudById = new Map(cloudProjects.map((project) => [project.id, project]));
+      const localProjects = await db.projects.toArray();
+
+      for (const local of localProjects) {
+        const cloudId = local.cloudId;
+
+        if (!cloudId) {
+          await this.syncProject(local.id, { background: true });
+          continue;
+        }
+
+        const cloudSummary = cloudById.get(cloudId);
+        if (!cloudSummary) {
+          await this.deleteLocalProject(local.id);
+          continue;
+        }
+
+        try {
+          if (cloudSummary.updatedAt > local.updatedAt) {
+            await backend.importRemoteProject(cloudId, local.id);
+            const now = Date.now();
+            const refreshed = await db.projects.get(local.id);
+            if (refreshed) {
+              await db.projects.put({
+                ...refreshed,
+                lastSyncedAt: now,
+              });
+            }
+          } else if (local.updatedAt > cloudSummary.updatedAt) {
+            await this.syncProject(local.id, { background: true });
+          } else {
+            const now = Date.now();
+            await db.projects.put({
+              ...local,
+              lastSyncedAt: now,
+            });
+          }
+        } catch (error) {
+          this.pendingProjectIds.add(local.id);
+          useCloudSyncStore.getState().setError(
+            syncErrorMessage(error),
+            this.pendingProjectIds.size,
+          );
+        }
+
+        cloudById.delete(cloudId);
+      }
+
+      for (const cloudProject of cloudById.values()) {
+        try {
+          await this.importCloudProject(cloudProject.id);
+        } catch (error) {
+          useCloudSyncStore.getState().setError(
+            syncErrorMessage(error),
+            this.pendingProjectIds.size,
+          );
+        }
+      }
+
+      if (this.pendingProjectIds.size > 0) {
+        this.updatePendingState();
+      } else {
+        useCloudSyncStore.getState().setSynced();
+      }
+    } catch (error) {
+      const message = syncErrorMessage(error);
+      useCloudSyncStore.getState().setError(message, this.pendingProjectIds.size);
+      throw new Error(message);
+    }
   }
 
   async importCloudProject(cloudProjectId: string): Promise<string> {
-    const cloud = await db.cloudProjects.get(cloudProjectId);
-    if (!cloud) {
-      throw new Error('Cloud project not found.');
-    }
+    const existing = await db.projects
+      .filter((project) => project.cloudId === cloudProjectId)
+      .first();
+    if (existing) return existing.id;
 
     const localId = crypto.randomUUID();
-    const cloudAssets = await db.cloudAssets
-      .where('cloudProjectId')
-      .equals(cloudProjectId)
-      .toArray();
-    const now = Date.now();
-
-    await db.projects.put({
-      id: localId,
-      name: cloud.name,
-      data: cloud.data,
-      updatedAt: cloud.updatedAt,
-      cloudId: cloudProjectId,
-      lastSyncedAt: now,
-    });
-
-    for (const asset of cloudAssets) {
-      await db.assets.put({
-        id: asset.id,
-        projectId: localId,
-        name: asset.name,
-        type: asset.type,
-        mimeType: asset.mimeType,
-        width: asset.width,
-        height: asset.height,
-        blob: asset.blob,
-      });
-    }
-
+    await getCloudBackend().importRemoteProject(cloudProjectId, localId);
     return localId;
   }
 
+  async deleteCloudCopy(projectId: string): Promise<void> {
+    if (!isCloudSyncAvailable()) return;
+
+    const stored = await db.projects.get(projectId);
+    if (!stored?.cloudId) return;
+    await this.deleteCloudProject(stored.cloudId);
+  }
+
   async deleteCloudProject(cloudProjectId: string): Promise<void> {
-    await db.cloudAssets.where('cloudProjectId').equals(cloudProjectId).delete();
-    await db.cloudProjects.delete(cloudProjectId);
+    await getCloudBackend().deleteProject(cloudProjectId);
 
     const linked = await db.projects.filter((p) => p.cloudId === cloudProjectId).toArray();
     for (const project of linked) {
@@ -176,8 +287,15 @@ export class CloudSyncService {
       });
     }
   }
+
+  async listCloudProjects(): Promise<CloudProjectSummary[]> {
+    return getCloudBackend().listProjects();
+  }
+
+  private async deleteLocalProject(projectId: string): Promise<void> {
+    await db.assets.where('projectId').equals(projectId).delete();
+    await db.projects.delete(projectId);
+  }
 }
 
 export const cloudSyncService = new CloudSyncService();
-
-export { computeSyncStatus };

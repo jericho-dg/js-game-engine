@@ -3,6 +3,7 @@ dist/
 *.local
 .env
 .env.*
+!.env.example
 .DS_Store
 *.log
 .vite/
@@ -11,3 +12,4 @@ playwright-report/
 test-results/
 packages/editor/public/jge-player.js
 *.tsbuildinfo
+.cloud-data/

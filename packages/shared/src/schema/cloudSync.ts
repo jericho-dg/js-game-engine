@@ -1,9 +1,6 @@
 import type { ProjectData } from './project';
 import type { AssetType } from './project';
 
-/** Local project sync state relative to the cloud copy. */
-export type ProjectSyncStatus = 'local' | 'synced' | 'pending' | 'behind';
-
 export interface CloudProjectRecord {
   id: string;
   name: string;
