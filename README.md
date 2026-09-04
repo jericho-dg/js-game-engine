@@ -4,15 +4,15 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 ## Status
 
-**Phase 7 — Project Management** in progress. The app opens to a project manager where you can create, open, delete, and import projects.
+**Phase 8 — Cloud Sync** in progress. Connect a cloud account from the project manager to push, pull, and import projects. The first implementation uses a simulated cloud store in IndexedDB; a real remote API is planned next.
+
+**Phase 7 — Project Management** complete. Multi-scene projects, project manager, Flappy Bird demo, and TextRenderer are included.
 
 **Phase 6 — Export and Polish** complete. Undo/redo, ZIP project export/import, standalone HTML game export, and audio playback are available.
 
 **Phase 5 — Tilemaps and Prefabs** complete. TilemapRenderer with tileset painting, prefab save/instantiate, and project persistence are included.
 
 Previous phases: physics/input, scripting, editor essentials, and engine core.
-
-**Phase 8 (planned):** Cloud sync and collaboration (formerly Phase 7 in the original design plan).
 
 ## Getting started
 
@@ -23,7 +23,16 @@ npm run dev
 
 Open the URL printed by Vite (typically `http://localhost:5173`). The **Project Manager** opens first — create or open a project to enter the editor.
 
-## Phase 7 features (in progress)
+## Phase 8 features (in progress)
+
+### Cloud sync (simulated)
+- **Connect Cloud** in the project manager header (local session; no real auth yet)
+- **Push** uploads a local project + assets to a simulated cloud table in IndexedDB
+- **Pull** restores the cloud copy over the linked local project
+- Sync badges: **Local only**, **Synced**, **Needs push**, **Needs pull**
+- **Cloud Library** lists cloud-only projects you can import locally
+
+## Phase 7 features
 
 ### Project Manager
 - Opens on launch with a list of saved projects (stored in IndexedDB)
@@ -36,8 +45,13 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 - **Projects** saves the current project and returns to the project manager
 - **Open** shows a quick-switch dialog without leaving the editor layout
 
+### Scenes
+- Each scene is a project asset in the **Scenes** section of the Project panel
+- Create, open, and delete scenes; the active scene saves automatically
+- Scripts can call `this.loadScene('SceneName')` during play mode
+
 ### Flappy Bird demo
-- Full **Flappy Bird** template with title menu, gameplay, game-over screen, and score HUD
+- Three-scene template: **Menu**, **Game**, and **GameOver**
 - Tap **SPACE** or **↑** to flap; pass pipes to score
 - Synthesized flap, score, and crash sound effects
 

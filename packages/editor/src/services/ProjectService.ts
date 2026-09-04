@@ -2,6 +2,7 @@ import {
   PROJECT_VERSION,
   type AssetRecord,
   type ProjectData,
+  type ProjectSyncStatus,
   type ScriptRecord,
   type SerializedScene,
 } from '@js-game-engine/shared';
@@ -39,6 +40,8 @@ import {
   createFlappyProjectData,
   FLAPPY_GAME_MANAGER_SCRIPT_ID,
 } from '../demo/flappyDemo';
+import { cloudSyncService } from './cloudSyncService';
+import { useCloudSyncStore } from '../stores/cloudSyncStore';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const LEGACY_SPIN_SCRIPT_ID = 'script-spin-demo';
@@ -48,6 +51,7 @@ export interface ProjectSummary {
   id: string;
   name: string;
   updatedAt: number;
+  syncStatus?: ProjectSyncStatus;
 }
 
 export interface LoadedProject {
@@ -384,11 +388,20 @@ export class ProjectService {
 
   async listProjects(): Promise<ProjectSummary[]> {
     const rows = await db.projects.orderBy('updatedAt').reverse().toArray();
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      updatedAt: row.updatedAt,
-    }));
+    const isConnected = useCloudSyncStore.getState().isConnected;
+
+    const summaries = await Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        name: row.name,
+        updatedAt: row.updatedAt,
+        syncStatus: isConnected
+          ? await cloudSyncService.getSyncStatus(row.id)
+          : undefined,
+      })),
+    );
+
+    return summaries;
   }
 
   async createProject(

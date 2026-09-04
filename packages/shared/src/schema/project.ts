@@ -147,6 +147,10 @@ export interface StoredProject {
   name: string;
   data: ProjectData;
   updatedAt: number;
+  /** Linked cloud project id after first push. */
+  cloudId?: string;
+  /** Timestamp of the last successful push or pull. */
+  lastSyncedAt?: number;
 }
 
 export interface StoredAsset {

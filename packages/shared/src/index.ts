@@ -4,3 +4,4 @@ export { Vector2 } from './math/Vector2';
 export { Color } from './math/Color';
 export * from './schema/project';
 export * from './schema/standaloneExport';
+export * from './schema/cloudSync';
