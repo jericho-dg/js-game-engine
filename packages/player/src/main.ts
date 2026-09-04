@@ -9,6 +9,7 @@ import {
   Rigidbody2D,
   Runtime,
   Scene,
+  SceneManager,
   ScriptComponent,
   SpriteRenderer,
   TilemapRenderer,
@@ -35,6 +36,7 @@ function installEngineGlobals(): void {
     Collision2D,
     AudioSource,
     TextRenderer,
+    SceneManager,
   };
 }
 
@@ -87,6 +89,21 @@ function attachCompiledScripts(
   }
 
   return errors;
+}
+
+function detachCompiledScripts(scene: Scene): void {
+  const detachRecursive = (obj: GameObject) => {
+    for (const component of obj.getComponents(ScriptComponent)) {
+      component.clearBehaviour();
+    }
+    for (const child of obj.children) {
+      detachRecursive(child);
+    }
+  };
+
+  for (const root of scene.rootObjects) {
+    detachRecursive(root);
+  }
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -194,10 +211,32 @@ async function startGame(
 
   const manifest = (await response.json()) as StandaloneGameManifest;
   const assets = await loadAssets(manifest);
-  const scene = deserializeScene(manifest.scene);
-  hydrateScene(scene, assets);
 
-  const scriptErrors = attachCompiledScripts(scene, manifest.scripts);
+  const sceneCatalog =
+    manifest.scenes ??
+    (manifest.scene
+      ? [
+          {
+            id: manifest.activeSceneId ?? 'main',
+            name: manifest.scene.name || 'Main',
+            data: manifest.scene,
+          },
+        ]
+      : []);
+
+  const startRecord =
+    sceneCatalog.find((record) => record.id === manifest.activeSceneId) ??
+    sceneCatalog.find((record) => record.name === manifest.scene?.name) ??
+    sceneCatalog[0];
+
+  if (!startRecord) {
+    throw new Error('No scenes found in game.json');
+  }
+
+  let activeScene = deserializeScene(startRecord.data);
+  hydrateScene(activeScene, assets);
+
+  const scriptErrors = attachCompiledScripts(activeScene, manifest.scripts);
   if (scriptErrors.length > 0) {
     throw new Error(scriptErrors.join('\n'));
   }
@@ -206,8 +245,27 @@ async function startGame(
   overlay?.classList.add('hidden');
 
   const container = canvas.parentElement ?? document.body;
-  const runtime = new Runtime({ scene, canvas, showGrid: false });
+  let runtime = new Runtime({ scene: activeScene, canvas, showGrid: false });
   const unwireInput = wireInput();
+
+  const loadSceneData = (data: import('@js-game-engine/shared').SerializedScene) => {
+    detachCompiledScripts(activeScene);
+    activeScene.stop();
+
+    const nextScene = deserializeScene(data);
+    hydrateScene(nextScene, assets);
+    const errors = attachCompiledScripts(nextScene, manifest.scripts);
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+
+    nextScene.start();
+    Input._clear();
+    activeScene = nextScene;
+    runtime.setScene(nextScene);
+  };
+
+  SceneManager.configure(sceneCatalog, loadSceneData);
 
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
@@ -220,6 +278,7 @@ async function startGame(
 
   window.addEventListener('beforeunload', () => {
     runtime.stop();
+    SceneManager.reset();
     unwireInput();
     window.removeEventListener('resize', resize);
   });

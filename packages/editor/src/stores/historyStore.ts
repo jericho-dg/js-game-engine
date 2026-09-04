@@ -4,6 +4,7 @@ import { deserializeScene, serializeScene } from '@js-game-engine/engine';
 import { hydrateSceneAssets, projectService } from '../services/ProjectService';
 import { useAssetStore, type AssetSnapshot } from './assetStore';
 import { usePrefabStore } from './prefabStore';
+import { useSceneAssetStore } from './sceneAssetStore';
 import { useSceneStore } from './sceneStore';
 import { useScriptStore } from './scriptStore';
 
@@ -65,6 +66,8 @@ async function restoreSnapshot(snapshot: EditorSnapshot): Promise<void> {
 
   const scene = deserializeScene(snapshot.scene);
   hydrateSceneAssets(scene);
+
+  useSceneAssetStore.getState().updateActiveSceneData(snapshot.scene);
 
   useScriptStore.getState().setScripts(snapshot.scripts);
   usePrefabStore.getState().setPrefabs(snapshot.prefabs);

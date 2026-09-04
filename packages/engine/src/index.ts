@@ -7,6 +7,8 @@ export { Component } from './core/Component';
 export { Transform } from './core/Transform';
 export { GameObject } from './core/GameObject';
 export { Scene } from './core/Scene';
+export { SceneManager } from './core/SceneManager';
+export type { SceneLoader } from './core/SceneManager';
 export { GameLoop, FIXED_DELTA_TIME } from './core/GameLoop';
 export { Runtime } from './core/Runtime';
 

@@ -7,6 +7,7 @@ import {
   GameObject,
   Input,
   Scene,
+  SceneManager,
   ScriptComponent,
   SpriteRenderer,
   TilemapRenderer,
@@ -23,6 +24,7 @@ import { worldToLocalPoint } from '../gizmos/hitTest';
 import { attachScriptsToScene, detachScriptsFromScene } from '../scripting/ScriptRuntime';
 import { getPlayBlockers } from '../scripting/validateScripts';
 import { usePrefabStore } from './prefabStore';
+import { useSceneAssetStore } from './sceneAssetStore';
 import { useAssetStore } from './assetStore';
 import { useConsoleStore } from './consoleStore';
 import { useScriptStore } from './scriptStore';
@@ -62,6 +64,9 @@ interface SceneState {
   setTilePaintIndex: (index: number) => void;
   paintTileAtWorld: (objectId: string, worldX: number, worldY: number, erase?: boolean) => void;
   resetProject: () => Promise<void>;
+  switchScene: (sceneId: string) => void;
+  createScene: (name?: string) => void;
+  deleteScene: (sceneId: string) => void;
 }
 
 export const useSceneStore = create<SceneState>((set, get) => ({
@@ -85,6 +90,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   markSceneChanged: () => {
     const { scene, projectId, projectName, editorMode } = get();
     if (editorMode === 'play') return;
+    if (scene) {
+      useSceneAssetStore.getState().updateActiveSceneData(serializeScene(scene));
+    }
     set((s) => ({ sceneRevision: s.sceneRevision + 1 }));
     useHistoryStore.getState().scheduleSnapshot();
     if (scene && projectId) {
@@ -116,6 +124,13 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
     const scriptState = useScriptStore.getState();
     await scriptState.ensureScriptsCompiledForScene(scene);
+
+    const sceneRecords = useSceneAssetStore.getState().scenes;
+    for (const record of sceneRecords) {
+      if (record.id === useSceneAssetStore.getState().activeSceneId) continue;
+      const otherScene = deserializeScene(record.data);
+      await scriptState.ensureScriptsCompiledForScene(otherScene);
+    }
 
     const scripts = useScriptStore.getState().scripts;
     const blockers = getPlayBlockers(scene, scripts, {
@@ -168,11 +183,38 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       selectedId: null,
       sceneRevision: get().sceneRevision + 1,
     });
+
+    SceneManager.configure(sceneRecords, (data) => {
+      const state = get();
+      if (state.playScene) {
+        detachScriptsFromScene(state.playScene);
+        state.playScene.stop();
+      }
+
+      const nextScene = deserializeScene(data);
+      hydrateSceneAssets(nextScene);
+      const nextScripts = useScriptStore.getState().scripts;
+      const { errors } = attachScriptsToScene(nextScene, nextScripts);
+      if (errors.length > 0) {
+        for (const error of errors) {
+          useConsoleStore.getState().log(
+            'error',
+            `${error.objectName} / ${error.scriptName}: ${error.message}`,
+          );
+        }
+      } else {
+        nextScene.start();
+      }
+
+      Input._clear();
+      set({ playScene: nextScene, sceneRevision: get().sceneRevision + 1 });
+    });
   },
 
   exitPlayMode: () => {
     const { playScene } = get();
     if (playScene) detachScriptsFromScene(playScene);
+    SceneManager.reset();
     Debug.setLogCallback(null);
     Input._clear();
     set({
@@ -428,12 +470,94 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       useScriptStore.getState().openScript(firstScript.id);
     }
   },
+
+  switchScene: (sceneId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    const assetStore = useSceneAssetStore.getState();
+    if (sceneId === assetStore.activeSceneId) return;
+
+    const target = assetStore.getSceneRecord(sceneId);
+    if (!target) return;
+
+    assetStore.updateActiveSceneData(serializeScene(scene));
+
+    const nextScene = deserializeScene(target.data);
+    hydrateSceneAssets(nextScene);
+
+    useSceneAssetStore.setState({ activeSceneId: sceneId });
+    set({
+      scene: nextScene,
+      selectedId: null,
+      sceneRevision: get().sceneRevision + 1,
+    });
+    useHistoryStore.getState().resetHistory();
+    get().markSceneChanged();
+  },
+
+  createScene: (name) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    get().beginSceneChange();
+    assetStoreFlushActiveScene(scene);
+
+    const record = useSceneAssetStore.getState().createScene(name);
+    const nextScene = deserializeScene(record.data);
+    hydrateSceneAssets(nextScene);
+
+    useSceneAssetStore.setState({ activeSceneId: record.id });
+    set({
+      scene: nextScene,
+      selectedId: null,
+      sceneRevision: get().sceneRevision + 1,
+    });
+    useHistoryStore.getState().resetHistory();
+    get().markSceneChanged();
+  },
+
+  deleteScene: (sceneId) => {
+    const { scene, editorMode } = get();
+    if (editorMode === 'play' || !scene) return;
+
+    const assetStore = useSceneAssetStore.getState();
+    const wasActive = sceneId === assetStore.activeSceneId;
+    if (wasActive) {
+      assetStore.updateActiveSceneData(serializeScene(scene));
+    }
+
+    const deleted = assetStore.deleteScene(sceneId);
+    if (!deleted) return;
+
+    get().beginSceneChange();
+
+    if (wasActive) {
+      const activeRecord = useSceneAssetStore.getState().getActiveSceneRecord();
+      if (!activeRecord) return;
+
+      const nextScene = deserializeScene(activeRecord.data);
+      hydrateSceneAssets(nextScene);
+      set({
+        scene: nextScene,
+        selectedId: null,
+        sceneRevision: get().sceneRevision + 1,
+      });
+      useHistoryStore.getState().resetHistory();
+    }
+
+    get().markSceneChanged();
+  },
 }));
 
 export function getSelectedObject(): GameObject | null {
   const { scene, selectedId } = useSceneStore.getState();
   if (!scene || !selectedId) return null;
   return findObjectById(scene, selectedId);
+}
+
+function assetStoreFlushActiveScene(scene: Scene): void {
+  useSceneAssetStore.getState().updateActiveSceneData(serializeScene(scene));
 }
 
 export function findObjectById(scene: Scene, id: string): GameObject | null {

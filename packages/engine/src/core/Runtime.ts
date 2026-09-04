@@ -11,7 +11,7 @@ export interface RuntimeOptions {
 }
 
 export class Runtime {
-  readonly scene: Scene;
+  private activeScene: Scene;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly renderer: Canvas2DRenderer;
@@ -20,8 +20,12 @@ export class Runtime {
   private height = 0;
   private dpr = 1;
 
+  get scene(): Scene {
+    return this.activeScene;
+  }
+
   constructor(options: RuntimeOptions) {
-    this.scene = options.scene;
+    this.activeScene = options.scene;
     this.canvas = options.canvas;
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('Could not acquire 2D canvas context.');
@@ -31,14 +35,18 @@ export class Runtime {
     this.loop = new GameLoop(
       (dt) => {
         Time.deltaTime = dt;
-        this.scene.update(dt);
+        this.activeScene.update(dt);
       },
       (fixedDt) => {
         Time.fixedDeltaTime = fixedDt;
-        this.scene.fixedUpdate(fixedDt);
+        this.activeScene.fixedUpdate(fixedDt);
       },
       () => this.renderFrame(),
     );
+  }
+
+  setScene(scene: Scene): void {
+    this.activeScene = scene;
   }
 
   resize(width: number, height: number): void {
@@ -54,14 +62,14 @@ export class Runtime {
 
   start(): void {
     void AudioSystem.ensureContext();
-    this.scene.start();
+    this.activeScene.start();
     this.loop.start();
   }
 
   stop(): void {
     this.loop.stop();
     AudioSystem.stopAll();
-    this.scene.stop();
+    this.activeScene.stop();
   }
 
   /** Render a single frame without running the game loop (edit mode). */
@@ -71,6 +79,6 @@ export class Runtime {
 
   private renderFrame(): void {
     if (this.width <= 0 || this.height <= 0) return;
-    this.renderer.render(this.ctx, this.scene, this.width, this.height);
+    this.renderer.render(this.ctx, this.activeScene, this.width, this.height);
   }
 }
