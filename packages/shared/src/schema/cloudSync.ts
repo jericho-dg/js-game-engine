@@ -24,3 +24,14 @@ export interface CloudProjectSummary {
   name: string;
   updatedAt: number;
 }
+
+/** A project changed both locally and in the cloud since the last sync. */
+export interface SyncConflict {
+  localProjectId: string;
+  cloudProjectId: string;
+  projectName: string;
+  localUpdatedAt: number;
+  cloudUpdatedAt: number;
+}
+
+export type SyncConflictResolution = 'local' | 'cloud' | 'both' | 'skip';

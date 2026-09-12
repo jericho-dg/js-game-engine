@@ -151,6 +151,8 @@ export interface StoredProject {
   cloudId?: string;
   /** Timestamp of the last successful push or pull. */
   lastSyncedAt?: number;
+  /** Hosted play URL id after publishing a standalone game. */
+  publishId?: string;
 }
 
 export interface StoredAsset {

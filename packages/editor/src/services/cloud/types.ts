@@ -4,5 +4,12 @@ export interface CloudBackend {
   syncProjectFromLocal(projectId: string, cloudId: string): Promise<void>;
   deleteProject(cloudId: string): Promise<void>;
   listProjects(): Promise<CloudProjectSummary[]>;
-  importRemoteProject(cloudId: string, localProjectId: string): Promise<void>;
+  importRemoteProject(
+    cloudId: string,
+    localProjectId: string,
+    options?: {
+      linkCloud?: boolean;
+      overrideName?: string;
+    },
+  ): Promise<void>;
 }

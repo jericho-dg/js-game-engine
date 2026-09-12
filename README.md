@@ -4,6 +4,8 @@ A browser-native 2D game engine with a Unity-inspired editor. Built with React, 
 
 ## Status
 
+**Phase 9 — Hosting & Publishing** complete. Supabase backend, production auth, sync conflicts, publish, sharing, and public game gallery.
+
 **Phase 8 — Cloud Sync** complete. Projects sync automatically to cloud storage on create, save, import, and delete.
 
 **Phase 7 — Project Management** complete. Multi-scene projects, project manager, Flappy Bird demo, and TextRenderer are included.
@@ -23,6 +25,61 @@ npm run dev
 
 Open the URL printed by Vite (typically `http://localhost:5173`). The **Project Manager** opens first — create or open a project to enter the editor.
 
+## Phase 9 features
+
+### Hosted cloud backend (Supabase)
+- The cloud API supports a **Supabase** storage backend for production hosting
+- Postgres stores users, sessions, project metadata, shares, and published-game records
+- Supabase Storage holds project `.jge.zip` archives and published game files
+- Local dev still uses the default **file** backend (`.cloud-data/`) with no Supabase account required
+
+**Supabase setup**
+
+1. Create a [Supabase](https://supabase.com) project
+2. Run the migration in [`packages/cloud-api/supabase/migrations/001_cloud_backend.sql`](packages/cloud-api/supabase/migrations/001_cloud_backend.sql) (SQL editor or Supabase CLI)
+3. Copy [`packages/cloud-api/.env.example`](packages/cloud-api/.env.example) to `packages/cloud-api/.env` and set:
+   - `CLOUD_STORE=supabase`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (server-side only — never expose in the editor)
+4. Start the API: `npm run dev:cloud-api`
+
+### Production auth (Supabase Auth)
+- When `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in the editor, sign-up and sign-in use **Supabase Auth** (email + password)
+- Display name is stored in user metadata and a `profiles` table
+- The cloud API validates Supabase JWT access tokens when `CLOUD_STORE=supabase`
+- Local dev without Supabase env vars keeps the legacy display-name login via the file backend
+
+**Production auth setup**
+
+1. Run migration [`002_supabase_auth.sql`](packages/cloud-api/supabase/migrations/002_supabase_auth.sql) after migration 001
+2. In Supabase **Authentication → Providers**, enable Email (disable “Confirm email” for faster dev testing if you prefer)
+3. Set editor env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Project Settings → API → anon public key)
+4. Keep cloud API on `CLOUD_STORE=supabase` with the service role key
+
+### Public game gallery
+- Browse published games from the **Game Gallery** tab on the project manager (when the remote cloud API is enabled)
+- `GET /v1/gallery` lists games marked public, newest first
+- When publishing, check **List in the public game gallery** to include your game
+- Anyone can play gallery games via the **Play** link (same `/play/{id}/` URLs as direct publish links)
+
+### Sync conflict resolution
+- When a linked project changed on this device **and** in the cloud since the last sync, a dialog lets you choose:
+  - **Keep this device** — upload local to cloud
+  - **Keep cloud** — replace local with cloud
+  - **Keep both as copies** — local stays here; cloud version imported as a new project
+  - **Decide later** — skip for now; project shows a sync conflict badge
+
+### One-click publish
+- When signed in with the remote cloud API, **Publish** uploads a standalone HTML5 build and returns a shareable play URL
+- Optionally **list in the public game gallery** from the publish dialog
+- Republishing the same project updates the same URL
+- Play URLs are served at `/play/{id}/` (proxied to the cloud API in dev)
+
+### Project sharing
+- **Share** on a project card creates a link recipients can use to import a copy
+- Share links look like `/?share={token}` and require the remote cloud API
+- Imported copies are independent — changes are not synced back to the original
+
 ## Phase 8 features
 
 ### Cloud sync
@@ -36,6 +93,8 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
   2. Run `npm run dev:cloud-api` in one terminal and `npm run dev` in another
   3. Sign up or sign in from the project manager header
   4. Delete dialog offers **Remove from this device** vs **Delete everywhere** when signed in
+
+  For hosted Supabase storage, configure `packages/cloud-api/.env` (see Phase 9 above) before starting the API.
 
 ## Phase 7 features
 

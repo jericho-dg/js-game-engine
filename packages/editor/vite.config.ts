@@ -11,6 +11,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (requestPath) => requestPath.replace(/^\/cloud-api/, ''),
       },
+      '/play': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
     },
   },
 });

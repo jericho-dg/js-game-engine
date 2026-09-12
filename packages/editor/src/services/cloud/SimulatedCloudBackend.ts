@@ -47,7 +47,14 @@ export class SimulatedCloudBackend implements CloudBackend {
     }));
   }
 
-  async importRemoteProject(cloudProjectId: string, localProjectId: string): Promise<void> {
+  async importRemoteProject(
+    cloudProjectId: string,
+    localProjectId: string,
+    options?: {
+      linkCloud?: boolean;
+      overrideName?: string;
+    },
+  ): Promise<void> {
     const cloud = await db.cloudProjects.get(cloudProjectId);
     if (!cloud) {
       throw new Error('Cloud project not found.');
@@ -72,14 +79,21 @@ export class SimulatedCloudBackend implements CloudBackend {
       });
     }
 
+    const projectName = options?.overrideName?.trim() || cloud.name;
+    const linkCloud = options?.linkCloud !== false;
     const now = Date.now();
+
     await db.projects.put({
       id: localProjectId,
-      name: cloud.name,
-      data: cloud.data,
+      name: projectName,
+      data: { ...cloud.data, name: projectName },
       updatedAt: cloud.updatedAt,
-      cloudId: cloudProjectId,
-      lastSyncedAt: now,
+      ...(linkCloud
+        ? {
+            cloudId: cloudProjectId,
+            lastSyncedAt: now,
+          }
+        : {}),
     });
   }
 }

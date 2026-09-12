@@ -13,13 +13,14 @@ export function SyncStatusBar({ compact = false, onRetry }: SyncStatusBarProps) 
   const lastSyncedAt = useCloudSyncStore((s) => s.lastSyncedAt);
   const pendingCount = useCloudSyncStore((s) => s.pendingCount);
   const errorMessage = useCloudSyncStore((s) => s.errorMessage);
+  const conflictCount = useCloudSyncStore((s) => s.conflicts.length);
   const isSignedIn = useAccountStore((s) => s.isSignedIn());
 
   if (mode === 'remote' && !isSignedIn) {
     return null;
   }
 
-  const label = formatSyncLabel(status, lastSyncedAt, pendingCount);
+  const label = formatSyncLabel(status, lastSyncedAt, pendingCount, conflictCount);
   const showRetry = status === 'error' || status === 'pending';
   const tone = statusTone(status);
 
@@ -58,6 +59,8 @@ function statusTone(status: ReturnType<typeof useCloudSyncStore.getState>['statu
       return 'text-[#f48771]';
     case 'pending':
       return 'text-[#dcdcaa]';
+    case 'conflict':
+      return 'text-[#dcdcaa]';
     default:
       return 'text-[#858585]';
   }
@@ -67,7 +70,12 @@ function formatSyncLabel(
   status: ReturnType<typeof useCloudSyncStore.getState>['status'],
   lastSyncedAt: number | null,
   pendingCount: number,
+  conflictCount: number,
 ): string {
+  if (status === 'conflict' && conflictCount > 0) {
+    return `${conflictCount} sync conflict${conflictCount === 1 ? '' : 's'}`;
+  }
+
   if (status === 'syncing') {
     return 'Syncing…';
   }

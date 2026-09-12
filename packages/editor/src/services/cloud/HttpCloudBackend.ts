@@ -53,10 +53,21 @@ export class HttpCloudBackend implements CloudBackend {
       throw new Error(await readError(response));
     }
     const body = (await response.json()) as CloudApiProjectListResponse;
-    return body.projects;
+    return body.projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      updatedAt: project.updatedAt,
+    }));
   }
 
-  async importRemoteProject(cloudProjectId: string, localProjectId: string): Promise<void> {
+  async importRemoteProject(
+    cloudProjectId: string,
+    localProjectId: string,
+    options?: {
+      linkCloud?: boolean;
+      overrideName?: string;
+    },
+  ): Promise<void> {
     const response = await fetch(`${this.baseUrl}/v1/projects/${cloudProjectId}`, {
       headers: this.headers(),
     });
@@ -64,9 +75,11 @@ export class HttpCloudBackend implements CloudBackend {
       throw new Error(await readError(response));
     }
     const archive = await response.arrayBuffer();
+    const linkCloud = options?.linkCloud !== false;
     await importProjectArchiveToDb(archive, {
       localProjectId,
-      cloudId: cloudProjectId,
+      ...(linkCloud ? { cloudId: cloudProjectId } : {}),
+      overrideName: options?.overrideName,
     });
   }
 }

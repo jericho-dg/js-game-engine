@@ -1,8 +1,21 @@
-import type { CloudProjectSummary } from '@js-game-engine/shared';
+import type { CloudProjectSummary, SyncConflict, SyncConflictResolution } from '@js-game-engine/shared';
 import { getCloudBackend, isRemoteCloudEnabled } from './cloud/getCloudBackend';
 import { useAccountStore } from '../stores/accountStore';
 import { useCloudSyncStore } from '../stores/cloudSyncStore';
 import { db } from './db';
+
+async function markProjectSynced(
+  localProjectId: string,
+  cloudSummary: CloudProjectSummary,
+): Promise<void> {
+  const refreshed = await db.projects.get(localProjectId);
+  if (!refreshed) return;
+
+  await db.projects.put({
+    ...refreshed,
+    lastSyncedAt: cloudSummary.updatedAt,
+  });
+}
 
 function isCloudSyncAvailable(): boolean {
   if (!isRemoteCloudEnabled()) return true;
@@ -25,6 +38,16 @@ function syncErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function hasSyncConflict(
+  local: { updatedAt: number; lastSyncedAt?: number },
+  cloud: { updatedAt: number },
+): boolean {
+  const syncBase = local.lastSyncedAt ?? 0;
+  const localChanged = local.updatedAt > syncBase;
+  const cloudChanged = cloud.updatedAt > syncBase;
+  return localChanged && cloudChanged && local.updatedAt !== cloud.updatedAt;
+}
+
 export class CloudSyncService {
   private resyncPromise: Promise<void> | null = null;
   private flushPromise: Promise<void> | null = null;
@@ -44,6 +67,55 @@ export class CloudSyncService {
 
   getPendingCount(): number {
     return this.pendingProjectIds.size;
+  }
+
+  getConflicts(): SyncConflict[] {
+    return useCloudSyncStore.getState().conflicts;
+  }
+
+  async resolveConflict(
+    conflict: SyncConflict,
+    resolution: SyncConflictResolution,
+  ): Promise<void> {
+    if (resolution === 'skip') {
+      useCloudSyncStore.getState().removeConflict(conflict.localProjectId);
+      return;
+    }
+
+    useCloudSyncStore.getState().setSyncing();
+    const backend = getCloudBackend();
+
+    try {
+      if (resolution === 'local') {
+        await this.pushProjectToCloud(conflict.localProjectId);
+      } else if (resolution === 'cloud') {
+        await backend.importRemoteProject(conflict.cloudProjectId, conflict.localProjectId, {
+          linkCloud: true,
+        });
+      } else if (resolution === 'both') {
+        const stored = await db.projects.get(conflict.localProjectId);
+        if (stored) {
+          await db.projects.put({
+            id: stored.id,
+            name: stored.name,
+            data: stored.data,
+            updatedAt: stored.updatedAt,
+          });
+        }
+        const duplicateId = crypto.randomUUID();
+        await backend.importRemoteProject(conflict.cloudProjectId, duplicateId, {
+          linkCloud: true,
+          overrideName: `${conflict.projectName} (cloud)`,
+        });
+      }
+
+      useCloudSyncStore.getState().removeConflict(conflict.localProjectId);
+      useCloudSyncStore.getState().setSynced();
+    } catch (error) {
+      const message = syncErrorMessage(error);
+      useCloudSyncStore.getState().setError(message, this.pendingProjectIds.size);
+      throw new Error(message);
+    }
   }
 
   private updateSyncAvailabilityState(): void {
@@ -186,6 +258,7 @@ export class CloudSyncService {
       const cloudProjects = await backend.listProjects();
       const cloudById = new Map(cloudProjects.map((project) => [project.id, project]));
       const localProjects = await db.projects.toArray();
+      const conflicts: SyncConflict[] = [];
 
       for (const local of localProjects) {
         const cloudId = local.cloudId;
@@ -201,25 +274,35 @@ export class CloudSyncService {
           continue;
         }
 
+        if (hasSyncConflict(local, cloudSummary)) {
+          conflicts.push({
+            localProjectId: local.id,
+            cloudProjectId: cloudId,
+            projectName: local.name,
+            localUpdatedAt: local.updatedAt,
+            cloudUpdatedAt: cloudSummary.updatedAt,
+          });
+          cloudById.delete(cloudId);
+          continue;
+        }
+
         try {
-          if (cloudSummary.updatedAt > local.updatedAt) {
-            await backend.importRemoteProject(cloudId, local.id);
-            const now = Date.now();
-            const refreshed = await db.projects.get(local.id);
-            if (refreshed) {
-              await db.projects.put({
-                ...refreshed,
-                lastSyncedAt: now,
-              });
-            }
+          const syncBase = local.lastSyncedAt ?? 0;
+          const localChanged = local.updatedAt > syncBase;
+          const cloudChanged = cloudSummary.updatedAt > syncBase;
+
+          if (cloudChanged && !localChanged) {
+            await backend.importRemoteProject(cloudId, local.id, { linkCloud: true });
+            await markProjectSynced(local.id, cloudSummary);
+          } else if (localChanged && !cloudChanged) {
+            await this.syncProject(local.id, { background: true });
           } else if (local.updatedAt > cloudSummary.updatedAt) {
             await this.syncProject(local.id, { background: true });
+          } else if (cloudSummary.updatedAt > local.updatedAt) {
+            await backend.importRemoteProject(cloudId, local.id, { linkCloud: true });
+            await markProjectSynced(local.id, cloudSummary);
           } else {
-            const now = Date.now();
-            await db.projects.put({
-              ...local,
-              lastSyncedAt: now,
-            });
+            await markProjectSynced(local.id, cloudSummary);
           }
         } catch (error) {
           this.pendingProjectIds.add(local.id);
@@ -234,7 +317,7 @@ export class CloudSyncService {
 
       for (const cloudProject of cloudById.values()) {
         try {
-          await this.importCloudProject(cloudProject.id);
+          await this.importCloudProject(cloudProject);
         } catch (error) {
           useCloudSyncStore.getState().setError(
             syncErrorMessage(error),
@@ -242,6 +325,8 @@ export class CloudSyncService {
           );
         }
       }
+
+      useCloudSyncStore.getState().setConflicts(conflicts);
 
       if (this.pendingProjectIds.size > 0) {
         this.updatePendingState();
@@ -255,14 +340,16 @@ export class CloudSyncService {
     }
   }
 
-  async importCloudProject(cloudProjectId: string): Promise<string> {
+  async importCloudProject(cloudProject: CloudProjectSummary): Promise<string> {
     const existing = await db.projects
-      .filter((project) => project.cloudId === cloudProjectId)
+      .filter((project) => project.cloudId === cloudProject.id)
       .first();
     if (existing) return existing.id;
 
     const localId = crypto.randomUUID();
-    await getCloudBackend().importRemoteProject(cloudProjectId, localId);
+    await getCloudBackend().importRemoteProject(cloudProject.id, localId, {
+      linkCloud: true,
+    });
     return localId;
   }
 

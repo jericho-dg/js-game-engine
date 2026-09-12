@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SyncConflictResolution } from '@js-game-engine/shared';
 import type { ProjectSummary } from '../services/ProjectService';
 import { projectService } from '../services/ProjectService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -12,9 +13,26 @@ import { NewProjectDialog } from '../components/NewProjectDialog';
 import { DeleteProjectDialog, type DeleteProjectScope } from '../components/DeleteProjectDialog';
 import { AccountBar } from '../components/AccountBar';
 import { SyncStatusBar } from '../components/SyncStatusBar';
+import { SyncConflictDialog } from '../components/SyncConflictDialog';
+import { ShareProjectDialog } from '../components/ShareProjectDialog';
+import { AcceptSharedProjectDialog } from '../components/AcceptSharedProjectDialog';
+import { GameGallery } from '../components/GameGallery';
 import { useAccountStore } from '../stores/accountStore';
 import { useCloudSyncStore } from '../stores/cloudSyncStore';
 import { useConsoleStore } from '../stores/consoleStore';
+import {
+  canShareProjects,
+  clearShareTokenFromUrl,
+  createProjectShareLink,
+  fetchSharedProjectInfo,
+  importSharedProject,
+  readShareTokenFromUrl,
+} from '../services/shareService';
+import type { CloudApiGalleryGame, CloudApiSharedProjectInfo } from '@js-game-engine/shared';
+import {
+  canBrowseGameGallery,
+  fetchPublicGames,
+} from '../services/galleryService';
 
 export function ProjectManagerScreen() {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +42,23 @@ export function ProjectManagerScreen() {
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isResolvingConflict, setIsResolvingConflict] = useState(false);
+  const [projectToShare, setProjectToShare] = useState<ProjectSummary | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharedProjectInfo, setSharedProjectInfo] = useState<CloudApiSharedProjectInfo | null>(null);
+  const [shareAcceptLoading, setShareAcceptLoading] = useState(false);
+  const [shareAcceptError, setShareAcceptError] = useState<string | null>(null);
+  const [isImportingShare, setIsImportingShare] = useState(false);
+  const pendingShareTokenRef = useRef<string | null>(null);
+  const [managerTab, setManagerTab] = useState<'projects' | 'gallery'>('projects');
+  const [galleryGames, setGalleryGames] = useState<CloudApiGalleryGame[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+
+  const conflicts = useCloudSyncStore((s) => s.conflicts);
+  const activeConflict = conflicts[0] ?? null;
+  const conflictProjectIds = new Set(conflicts.map((c) => c.localProjectId));
 
   const refreshProjects = useCallback(async () => {
     setLoading(true);
@@ -43,6 +78,96 @@ export function ProjectManagerScreen() {
 
   const showCloudDeleteOptions = usesRemoteCloud && isSignedIn;
   const remoteOnlyLocalDelete = usesRemoteCloud && !isSignedIn;
+  const showShareOption = canShareProjects();
+  const showGallery = canBrowseGameGallery();
+
+  const refreshGallery = useCallback(async () => {
+    if (!showGallery) return;
+    setGalleryLoading(true);
+    setGalleryError(null);
+    try {
+      setGalleryGames(await fetchPublicGames());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setGalleryError(message);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [showGallery]);
+
+  const dismissShareAccept = useCallback(() => {
+    setSharedProjectInfo(null);
+    setShareAcceptError(null);
+    setShareAcceptLoading(false);
+    pendingShareTokenRef.current = null;
+    clearShareTokenFromUrl();
+  }, []);
+
+  const loadPendingShare = useCallback(async (shareToken: string) => {
+    pendingShareTokenRef.current = shareToken;
+    setShareAcceptLoading(true);
+    setShareAcceptError(null);
+    setSharedProjectInfo(null);
+
+    if (!canShareProjects()) {
+      setShareAcceptLoading(false);
+      setShareAcceptError('Sign in to import this shared project.');
+      return;
+    }
+
+    try {
+      const info = await fetchSharedProjectInfo(shareToken);
+      setSharedProjectInfo(info);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setShareAcceptError(message);
+    } finally {
+      setShareAcceptLoading(false);
+    }
+  }, []);
+
+  const importPendingShare = async () => {
+    const shareToken = pendingShareTokenRef.current ?? readShareTokenFromUrl();
+    if (!shareToken) return;
+
+    setIsImportingShare(true);
+    setError(null);
+    try {
+      const imported = await importSharedProject(shareToken);
+      dismissShareAccept();
+      await refreshProjects();
+      useConsoleStore.getState().log('log', `Imported shared project: ${imported.projectName}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setShareAcceptError(message);
+    } finally {
+      setIsImportingShare(false);
+    }
+  };
+
+  const startShare = async (project: ProjectSummary) => {
+    setProjectToShare(project);
+    setShareUrl(null);
+    setIsSharing(true);
+    setError(null);
+    try {
+      const share = await createProjectShareLink(project.id);
+      setShareUrl(share.shareUrl);
+      setIsSharing(false);
+      useConsoleStore.getState().log('log', `Share link created for ${share.projectName}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setProjectToShare(null);
+      setIsSharing(false);
+    }
+  };
+
+  const closeShareDialog = () => {
+    setProjectToShare(null);
+    setShareUrl(null);
+    setIsSharing(false);
+  };
 
   const resyncFromCloud = useCallback(async () => {
     setLoading(true);
@@ -71,6 +196,21 @@ export function ProjectManagerScreen() {
     }
   }, [refreshProjects]);
 
+  const resolveConflict = async (resolution: SyncConflictResolution) => {
+    if (!activeConflict) return;
+    setIsResolvingConflict(true);
+    setError(null);
+    try {
+      await cloudSyncService.resolveConflict(activeConflict, resolution);
+      await refreshProjects();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+    } finally {
+      setIsResolvingConflict(false);
+    }
+  };
+
   useEffect(() => {
     void (async () => {
       if (usesRemoteCloud && useAccountStore.getState().token) {
@@ -79,6 +219,18 @@ export function ProjectManagerScreen() {
       await resyncFromCloud();
     })();
   }, [resyncFromCloud, usesRemoteCloud]);
+
+  useEffect(() => {
+    const shareToken = readShareTokenFromUrl();
+    if (!shareToken || !usesRemoteCloud) return;
+    void loadPendingShare(shareToken);
+  }, [loadPendingShare, usesRemoteCloud, isSignedIn]);
+
+  useEffect(() => {
+    if (managerTab === 'gallery') {
+      void refreshGallery();
+    }
+  }, [managerTab, refreshGallery]);
 
   const deleteProject = async (project: ProjectSummary, scope: DeleteProjectScope) => {
     setBusyId(project.id);
@@ -136,8 +288,7 @@ export function ProjectManagerScreen() {
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-[#cccccc]">js-game-engine</h1>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="text-xs text-[#858585]">Project Manager</p>
+            <div className="mt-0.5">
               <SyncStatusBar onRetry={() => void retrySync()} />
             </div>
           </div>
@@ -149,6 +300,30 @@ export function ProjectManagerScreen() {
 
       <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-5xl">
+          {showGallery ? (
+            <div className="mb-4 flex gap-2">
+              <ManagerTabButton
+                label="Projects"
+                active={managerTab === 'projects'}
+                onClick={() => setManagerTab('projects')}
+              />
+              <ManagerTabButton
+                label="Game Gallery"
+                active={managerTab === 'gallery'}
+                onClick={() => setManagerTab('gallery')}
+              />
+            </div>
+          ) : null}
+
+          {managerTab === 'gallery' && showGallery ? (
+            <GameGallery
+              games={galleryGames}
+              loading={galleryLoading}
+              error={galleryError}
+              onRefresh={() => void refreshGallery()}
+            />
+          ) : (
+            <>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium uppercase tracking-wide text-[#858585]">
               Projects
@@ -196,9 +371,12 @@ export function ProjectManagerScreen() {
                 <ProjectCard
                   key={project.id}
                   project={project}
+                  hasConflict={conflictProjectIds.has(project.id)}
                   busy={busyId === project.id}
                   disabled={busyId !== null && busyId !== project.id}
+                  showShare={showShareOption}
                   onOpen={() => void openProject(project.id)}
+                  onShare={() => void startShare(project)}
                   onDelete={() => setProjectToDelete(project)}
                 />
               ))}
@@ -210,6 +388,8 @@ export function ProjectManagerScreen() {
               {error}
             </p>
           ) : null}
+            </>
+          )}
         </div>
       </main>
 
@@ -230,6 +410,28 @@ export function ProjectManagerScreen() {
         onConfirm={(scope) => {
           if (projectToDelete) void deleteProject(projectToDelete, scope);
         }}
+      />
+
+      <SyncConflictDialog
+        conflict={activeConflict}
+        isResolving={isResolvingConflict}
+        onResolve={(resolution) => void resolveConflict(resolution)}
+      />
+
+      <ShareProjectDialog
+        projectName={projectToShare?.name ?? null}
+        shareUrl={shareUrl}
+        isSharing={isSharing && !shareUrl}
+        onClose={closeShareDialog}
+      />
+
+      <AcceptSharedProjectDialog
+        info={sharedProjectInfo}
+        isLoading={shareAcceptLoading}
+        isImporting={isImportingShare}
+        error={shareAcceptError}
+        onImport={() => void importPendingShare()}
+        onDismiss={dismissShareAccept}
       />
     </div>
   );
@@ -255,15 +457,21 @@ function EmptyState({ onNewProject }: { onNewProject: () => void }) {
 
 function ProjectCard({
   project,
+  hasConflict,
   busy,
   disabled,
+  showShare,
   onOpen,
+  onShare,
   onDelete,
 }: {
   project: ProjectSummary;
+  hasConflict: boolean;
   busy: boolean;
   disabled: boolean;
+  showShare: boolean;
   onOpen: () => void;
+  onShare: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -276,6 +484,9 @@ function ProjectCard({
           <h3 className="truncate text-sm font-medium text-[#cccccc]">{project.name}</h3>
           <p className="text-xs text-[#858585]">
             Modified {formatUpdatedAt(project.updatedAt)}
+            {hasConflict ? (
+              <span className="ml-2 text-[#dcdcaa]">· Sync conflict</span>
+            ) : null}
           </p>
         </div>
       </div>
@@ -287,6 +498,13 @@ function ProjectCard({
           disabled={disabled || busy}
           onClick={onOpen}
         />
+        {showShare ? (
+          <ActionButton
+            label="Share"
+            disabled={disabled || busy}
+            onClick={onShare}
+          />
+        ) : null}
         <ActionButton
           label="Delete"
           disabled={disabled || busy}
@@ -294,6 +512,30 @@ function ProjectCard({
         />
       </div>
     </article>
+  );
+}
+
+function ManagerTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded px-3 py-1.5 text-xs transition-colors ${
+        active
+          ? 'bg-[#007acc] text-white'
+          : 'border border-[#3c3c3c] text-[#858585] hover:bg-[#3c3c3c] hover:text-[#cccccc]'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

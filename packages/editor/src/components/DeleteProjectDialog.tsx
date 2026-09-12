@@ -119,7 +119,7 @@ export function DeleteProjectDialog({
                 onClick={() => void onConfirm(remoteOnlyLocalDelete ? 'local' : 'everywhere')}
                 className="rounded bg-[#c62828] px-3 py-1.5 text-xs text-white hover:bg-[#d32f2f] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {isDeleting ? 'Deleting…' : 'Delete'}
+                {isDeleting ? 'Removing…' : 'Delete'}
               </button>
             </div>
           </>
