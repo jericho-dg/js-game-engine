@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useSceneStore } from '../stores/sceneStore';
 import { useScriptStore } from '../stores/scriptStore';
 import { useHistoryStore } from '../stores/historyStore';
@@ -6,13 +6,20 @@ import { useAppStore } from '../stores/appStore';
 import { projectService } from '../services/ProjectService';
 import { exportProjectZip, importProjectZip } from '../services/projectExport';
 import { exportStandaloneGame } from '../services/standaloneExport';
+import { publishStandaloneGame } from '../services/publishService';
+import { isRemoteCloudEnabled } from '../services/cloud/getCloudBackend';
 import { returnToProjectManager } from '../services/projectLoader';
 import { useConsoleStore } from '../stores/consoleStore';
+import { useAccountStore } from '../stores/accountStore';
 import { SyncStatusBar } from './SyncStatusBar';
+import { PublishGameDialog } from './PublishGameDialog';
 import { cloudSyncService } from '../services/cloudSyncService';
 
 export function Toolbar() {
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishPlayUrl, setPublishPlayUrl] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
   const projectName = useSceneStore((s) => s.projectName);
   const editorMode = useSceneStore((s) => s.editorMode);
   const isCompilingScripts = useScriptStore((s) => s.isCompilingScripts);
@@ -26,6 +33,8 @@ export function Toolbar() {
   const redo = useHistoryStore((s) => s.redo);
   const openNewProjectDialog = useAppStore((s) => s.openNewProjectDialog);
   const openOpenProjectDialog = useAppStore((s) => s.openOpenProjectDialog);
+  const isSignedIn = useAccountStore((s) => Boolean(s.token && s.displayName.trim()));
+  const showPublish = isRemoteCloudEnabled() && isSignedIn;
 
   const save = async () => {
     if (!scene || !projectId) return;
@@ -52,6 +61,42 @@ export function Toolbar() {
       const message = error instanceof Error ? error.message : String(error);
       useConsoleStore.getState().log('error', `Export game failed: ${message}`);
     }
+  };
+
+  const openPublishDialog = () => {
+    if (!scene || !projectId || editorMode === 'play' || isCompilingScripts || isPublishing) {
+      return;
+    }
+    setPublishPlayUrl(null);
+    setPublishDialogOpen(true);
+  };
+
+  const confirmPublish = async (options: { listInGallery: boolean }) => {
+    if (!scene || !projectId || editorMode === 'play' || isCompilingScripts || isPublishing) {
+      return;
+    }
+    setIsPublishing(true);
+    setPublishPlayUrl(null);
+    try {
+      const result = await publishStandaloneGame(scene, projectId, projectName, {
+        listInGallery: options.listInGallery,
+      });
+      setPublishPlayUrl(result.playUrl);
+      setIsPublishing(false);
+      const galleryNote = result.isPublic ? ' (listed in gallery)' : '';
+      useConsoleStore.getState().log('log', `Published game: ${result.playUrl}${galleryNote}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      useConsoleStore.getState().log('error', `Publish failed: ${message}`);
+      setIsPublishing(false);
+      setPublishDialogOpen(false);
+    }
+  };
+
+  const closePublishDialog = () => {
+    setPublishPlayUrl(null);
+    setIsPublishing(false);
+    setPublishDialogOpen(false);
   };
 
   const importProject = async (file: File) => {
@@ -106,6 +151,14 @@ export function Toolbar() {
           disabled={!isEditing || isCompilingScripts}
           onClick={() => void exportGame()}
         />
+        {showPublish ? (
+          <ToolbarButton
+            label="Publish"
+            title="Publish to a hosted play URL"
+            disabled={!isEditing || isCompilingScripts || isPublishing}
+            onClick={openPublishDialog}
+          />
+        ) : null}
         <ToolbarButton
           label="Import"
           title="Import project from .jge.zip"
@@ -167,6 +220,14 @@ export function Toolbar() {
           onClick={redo}
         />
       </div>
+      <PublishGameDialog
+        projectName={projectName}
+        open={publishDialogOpen}
+        playUrl={publishPlayUrl}
+        isPublishing={isPublishing && !publishPlayUrl}
+        onClose={closePublishDialog}
+        onConfirm={(options) => void confirmPublish(options)}
+      />
     </header>
   );
 }

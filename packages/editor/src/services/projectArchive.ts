@@ -52,7 +52,7 @@ export async function importProjectArchiveToDb(
   archive: ArrayBuffer,
   options: {
     localProjectId: string;
-    cloudId: string;
+    cloudId?: string;
     overrideName?: string;
   },
 ): Promise<{ projectName: string; updatedAt: number }> {
@@ -100,8 +100,12 @@ export async function importProjectArchiveToDb(
       name: projectName,
     },
     updatedAt,
-    cloudId: options.cloudId,
-    lastSyncedAt: updatedAt,
+    ...(options.cloudId
+      ? {
+          cloudId: options.cloudId,
+          lastSyncedAt: updatedAt,
+        }
+      : {}),
   });
 
   return { projectName, updatedAt };

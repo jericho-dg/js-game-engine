@@ -107,11 +107,11 @@ async function loadPlayerBundle(): Promise<string> {
   return source;
 }
 
-export async function exportStandaloneGame(
+export async function buildStandaloneGameZip(
   scene: Scene,
   projectId: string,
   projectName: string,
-): Promise<void> {
+): Promise<Blob> {
   const scripts = useScriptStore.getState().scripts;
   const blockers = getPlayBlockers(scene, scripts, {
     hasUnsavedScripts: useScriptStore.getState().hasUnsavedScripts(),
@@ -176,7 +176,15 @@ export async function exportStandaloneGame(
     zip.file(path, entry.blob);
   }
 
-  const blob = await zip.generateAsync({ type: 'blob' });
+  return zip.generateAsync({ type: 'blob' });
+}
+
+export async function exportStandaloneGame(
+  scene: Scene,
+  projectId: string,
+  projectName: string,
+): Promise<void> {
+  const blob = await buildStandaloneGameZip(scene, projectId, projectName);
   const safeName = projectName.replace(/[^\w.-]+/g, '_') || 'game';
   downloadBlob(blob, `${safeName}${STANDALONE_EXPORT_EXTENSION}`);
 }

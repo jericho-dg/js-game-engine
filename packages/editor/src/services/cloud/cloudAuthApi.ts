@@ -63,8 +63,24 @@ export async function signOutFromCloudApi(token: string | null): Promise<void> {
 }
 
 export async function validateCloudSession(token: string): Promise<boolean> {
+  const session = await fetchCloudSession(token);
+  return session !== null;
+}
+
+export async function fetchCloudSession(
+  token: string,
+): Promise<CloudApiAuthResponse | null> {
   const response = await fetch(`${getAuthBaseUrl()}/v1/auth/session`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  return response.ok;
+  if (!response.ok) {
+    return null;
+  }
+
+  const user = (await response.json()) as { userId: string; displayName: string };
+  return {
+    token,
+    userId: user.userId,
+    displayName: user.displayName,
+  };
 }

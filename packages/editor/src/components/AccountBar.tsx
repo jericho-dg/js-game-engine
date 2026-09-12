@@ -50,7 +50,9 @@ export function AccountBar() {
 function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const signIn = useAccountStore((s) => s.signIn);
   const signUp = useAccountStore((s) => s.signUp);
+  const usesSupabase = useAccountStore((s) => s.usesSupabaseAuth());
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +60,26 @@ function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   if (!open) return null;
 
+  const canSubmit = usesSupabase
+    ? Boolean(email.trim() && password && (mode === 'signin' || displayName.trim()))
+    : Boolean(displayName.trim() && password);
+
   const submit = async () => {
     setError(null);
     setBusy(true);
     try {
       if (mode === 'signup') {
-        await signUp(displayName, password);
+        await signUp({
+          email: usesSupabase ? email : undefined,
+          displayName,
+          password,
+        });
       } else {
-        await signIn(displayName, password);
+        await signIn({
+          email: usesSupabase ? email : undefined,
+          displayName: usesSupabase ? undefined : displayName,
+          password,
+        });
       }
       setPassword('');
       onClose();
@@ -120,14 +134,30 @@ function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
           </button>
         </div>
 
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Display name"
-          autoComplete="username"
-          className="mt-4 w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-3 py-2 text-sm text-[#cccccc] outline-none focus:border-[#007acc]"
-        />
+        {usesSupabase ? (
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="email"
+            className="mt-4 w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-3 py-2 text-sm text-[#cccccc] outline-none focus:border-[#007acc]"
+          />
+        ) : null}
+
+        {!usesSupabase || mode === 'signup' ? (
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Display name"
+            autoComplete="username"
+            className={`w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-3 py-2 text-sm text-[#cccccc] outline-none focus:border-[#007acc] ${
+              usesSupabase ? 'mt-3' : 'mt-4'
+            }`}
+          />
+        ) : null}
+
         <input
           type="password"
           value={password}
@@ -136,7 +166,7 @@ function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
           autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
           className="mt-3 w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] px-3 py-2 text-sm text-[#cccccc] outline-none focus:border-[#007acc]"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && displayName.trim() && password) {
+            if (e.key === 'Enter' && canSubmit) {
               void submit();
             }
           }}
@@ -159,7 +189,7 @@ function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
           </button>
           <button
             type="button"
-            disabled={busy || !displayName.trim() || !password}
+            disabled={busy || !canSubmit}
             onClick={() => void submit()}
             className="rounded bg-[#007acc] px-3 py-1.5 text-xs text-white hover:bg-[#1a8ad4] disabled:opacity-40"
           >

@@ -60,22 +60,22 @@ async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await writeFile(filePath, JSON.stringify(value, null, 2));
 }
 
-function normalizeDisplayName(displayName: string): string {
+export function normalizeDisplayName(displayName: string): string {
   return displayName.trim();
 }
 
-function hashPassword(password: string, salt: string): string {
+export function hashPassword(password: string, salt: string): string {
   return scryptSync(password, salt, 64).toString('hex');
 }
 
-function verifyPassword(password: string, salt: string, passwordHash: string): boolean {
+export function verifyPassword(password: string, salt: string, passwordHash: string): boolean {
   const actual = Buffer.from(hashPassword(password, salt), 'hex');
   const expected = Buffer.from(passwordHash, 'hex');
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(actual, expected);
 }
 
-function validateCredentials(displayName: string, password: string): string | null {
+export function validateCredentials(displayName: string, password: string): string | null {
   if (!normalizeDisplayName(displayName)) {
     return 'Display name is required.';
   }

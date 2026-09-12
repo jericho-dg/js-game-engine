@@ -1,20 +1,31 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  signInWithCloudApi,
-  signOutFromCloudApi,
-  signUpWithCloudApi,
-  validateCloudSession,
-} from '../services/cloud/cloudAuthApi';
+  signIn as authSignIn,
+  signOut as authSignOut,
+  signUp as authSignUp,
+  usesSupabaseAuth,
+  validateSession,
+} from '../services/cloud/authService';
 
 interface AccountState {
   userId: string | null;
   displayName: string;
+  email: string;
   token: string | null;
-  signUp: (displayName: string, password: string) => Promise<void>;
-  signIn: (displayName: string, password: string) => Promise<void>;
+  signUp: (credentials: {
+    email?: string;
+    displayName: string;
+    password: string;
+  }) => Promise<void>;
+  signIn: (credentials: {
+    email?: string;
+    displayName?: string;
+    password: string;
+  }) => Promise<void>;
   signOut: () => Promise<void>;
   isSignedIn: () => boolean;
+  usesSupabaseAuth: () => boolean;
   validateSession: () => Promise<boolean>;
 }
 
@@ -23,42 +34,56 @@ export const useAccountStore = create<AccountState>()(
     (set, get) => ({
       userId: null,
       displayName: '',
+      email: '',
       token: null,
 
-      signUp: async (displayName, password) => {
-        const result = await signUpWithCloudApi({ displayName, password });
+      signUp: async (credentials) => {
+        const result = await authSignUp(credentials);
         set({
           userId: result.userId,
           displayName: result.displayName,
+          email: result.email ?? '',
           token: result.token,
         });
       },
 
-      signIn: async (displayName, password) => {
-        const result = await signInWithCloudApi({ displayName, password });
+      signIn: async (credentials) => {
+        const result = await authSignIn(credentials);
         set({
           userId: result.userId,
           displayName: result.displayName,
+          email: result.email ?? '',
           token: result.token,
         });
       },
 
       signOut: async () => {
         const token = get().token;
-        await signOutFromCloudApi(token);
-        set({ displayName: '', token: null });
+        await authSignOut(token);
+        set({ userId: null, displayName: '', email: '', token: null });
       },
 
       isSignedIn: () => Boolean(get().token && get().displayName.trim()),
 
+      usesSupabaseAuth,
+
       validateSession: async () => {
         const token = get().token;
         if (!token) return false;
-        const valid = await validateCloudSession(token);
-        if (!valid) {
-          set({ displayName: '', token: null });
+
+        const refreshed = await validateSession(token);
+        if (!refreshed) {
+          set({ userId: null, displayName: '', email: '', token: null });
+          return false;
         }
-        return valid;
+
+        set({
+          userId: refreshed.userId,
+          displayName: refreshed.displayName,
+          email: refreshed.email ?? get().email,
+          token: refreshed.token,
+        });
+        return true;
       },
     }),
     { name: 'jge-account' },

@@ -49,6 +49,7 @@ export interface ProjectSummary {
   id: string;
   name: string;
   updatedAt: number;
+  cloudId?: string;
 }
 
 export interface LoadedProject {
@@ -389,6 +390,7 @@ export class ProjectService {
       id: row.id,
       name: row.name,
       updatedAt: row.updatedAt,
+      cloudId: row.cloudId,
     }));
   }
 
