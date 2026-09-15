@@ -1,5 +1,8 @@
 export const STANDALONE_EXPORT_VERSION = '1';
 
+/** Reference viewport height for published games (scale to fit window height). */
+export const STANDALONE_DESIGN_VIEWPORT_HEIGHT = 960;
+
 export interface StandaloneCompiledScript {
   id: string;
   name: string;

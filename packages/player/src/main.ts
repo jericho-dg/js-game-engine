@@ -1,4 +1,7 @@
-import type { StandaloneGameManifest } from '@js-game-engine/shared';
+import {
+  STANDALONE_DESIGN_VIEWPORT_HEIGHT,
+  type StandaloneGameManifest,
+} from '@js-game-engine/shared';
 import {
   AudioSource,
   Behaviour,
@@ -268,8 +271,16 @@ async function startGame(
   SceneManager.configure(sceneCatalog, loadSceneData);
 
   const resize = () => {
-    const { width, height } = container.getBoundingClientRect();
-    runtime.resize(width, height);
+    const { width: windowWidth, height: windowHeight } = container.getBoundingClientRect();
+    if (windowHeight <= 0) return;
+
+    const designHeight = STANDALONE_DESIGN_VIEWPORT_HEIGHT;
+    const scale = windowHeight / designHeight;
+    const logicalWidth = windowWidth / scale;
+
+    runtime.resize(logicalWidth, designHeight);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
   };
 
   resize();
