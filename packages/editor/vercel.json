@@ -2,5 +2,15 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/cloud-api/:path*",
+      "destination": "https://js-game-enginecloud-api-production.up.railway.app/:path*"
+    },
+    {
+      "source": "/play/:path*",
+      "destination": "https://js-game-enginecloud-api-production.up.railway.app/play/:path*"
+    }
+  ]
 }

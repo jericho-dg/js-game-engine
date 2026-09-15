@@ -75,7 +75,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 - Republishing the same project updates the same URL
 - Play URLs are served by the **cloud API** at `/play/{id}/` (Vite proxies `/play` in local dev)
 - In production (Vercel editor + Railway API), play links use your **Railway host** by default — the editor static app does not serve `/play` itself
-- Optional: use **Vercel** play links by adding a rewrite ` /play/:path*` → `https://<cloud-api>.up.railway.app/play/:path*` and set Railway `PLAY_URL_ORIGIN=https://<your-vercel-app>`
+- **Vercel play links:** root `vercel.json` rewrites `/play` and `/cloud-api` to Railway (update the Railway host in `vercel.json` if yours differs). Set Railway `PLAY_URL_ORIGIN=https://<your-vercel-app>` so publish/gallery links use the Vercel domain
 
 ### Project sharing
 - **Share** on a project card creates a link recipients can use to import a copy
