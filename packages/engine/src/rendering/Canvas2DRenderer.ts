@@ -37,7 +37,7 @@ export class Canvas2DRenderer {
     const background = camera?.backgroundColor ?? Color.fromHex('#1a1a2e');
 
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Keep Runtime's devicePixelRatio transform so drawing fills the backing store.
     ctx.fillStyle = background.toCss();
     ctx.fillRect(0, 0, width, height);
 
