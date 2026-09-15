@@ -3,13 +3,14 @@ import type {
   CloudApiAuthResponse,
   CloudApiErrorResponse,
 } from '@js-game-engine/shared';
+import { resolveCloudApiBaseUrl } from './cloudApiUrl';
 
 function getAuthBaseUrl(): string {
-  const apiUrl = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+  const apiUrl = resolveCloudApiBaseUrl();
   if (!apiUrl) {
     throw new Error('Cloud API URL is not configured.');
   }
-  return apiUrl.replace(/\/$/, '');
+  return apiUrl;
 }
 
 async function readAuthError(response: Response): Promise<string> {

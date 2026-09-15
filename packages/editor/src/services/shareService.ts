@@ -6,15 +6,16 @@ import type {
 import { useAccountStore } from '../stores/accountStore';
 import { db } from './db';
 import { isRemoteCloudEnabled } from './cloud/getCloudBackend';
+import { resolveCloudApiBaseUrl } from './cloud/cloudApiUrl';
 import { cloudSyncService } from './cloudSyncService';
 import { importProjectArchiveToDb } from './projectArchive';
 
 function getCloudApiBase(): string {
-  const apiUrl = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+  const apiUrl = resolveCloudApiBaseUrl();
   if (!apiUrl) {
     throw new Error('Project sharing requires the remote cloud API.');
   }
-  return apiUrl.replace(/\/$/, '');
+  return apiUrl;
 }
 
 function authHeaders(): HeadersInit {

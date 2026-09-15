@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import JSZip from 'jszip';
 import { extractBearerToken } from './auth.js';
 import { getCloudStoreBackend } from './config.js';
+import { resolvePlayOrigin } from './playOrigin.js';
 import { buildPlayUrl, injectPlayBaseHref, isPlayIndexRequest } from './publish.js';
 import { buildShareUrl } from './shares.js';
 import { getCloudStore, initializeCloudStore } from './store/index.js';
@@ -170,11 +171,11 @@ async function handleRequest(
     const limitParam = Number(url.searchParams.get('limit') ?? '50');
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 50;
     const games = await getCloudStore().listPublicGames(limit);
-    const origin = req.headers.origin ?? `http://localhost:${PORT}`;
+    const playOrigin = resolvePlayOrigin(req);
     sendJson(res, 200, {
       games: games.map((game) => ({
         ...game,
-        playUrl: buildPlayUrl(origin, game.publishId),
+        playUrl: buildPlayUrl(playOrigin, game.publishId),
       })),
     });
     return;
@@ -280,10 +281,10 @@ async function handleRequest(
         title: titleParam || undefined,
         isPublic,
       });
-      const origin = req.headers.origin ?? `http://localhost:${PORT}`;
+      const playOrigin = resolvePlayOrigin(req);
       sendJson(res, 200, {
         publishId,
-        playUrl: buildPlayUrl(origin, publishId),
+        playUrl: buildPlayUrl(playOrigin, publishId),
         updatedAt: result.updatedAt,
         title: result.title,
         isPublic: result.isPublic,

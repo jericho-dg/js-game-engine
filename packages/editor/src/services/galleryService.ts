@@ -1,12 +1,14 @@
 import type { CloudApiGalleryResponse } from '@js-game-engine/shared';
 import { isRemoteCloudEnabled } from './cloud/getCloudBackend';
+import { resolveCloudApiBaseUrl } from './cloud/cloudApiUrl';
+import { buildPublishedGamePlayUrl } from './playUrl';
 
 function getCloudApiBase(): string {
-  const apiUrl = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+  const apiUrl = resolveCloudApiBaseUrl();
   if (!apiUrl) {
     throw new Error('The game gallery requires the remote cloud API.');
   }
-  return apiUrl.replace(/\/$/, '');
+  return apiUrl;
 }
 
 export function canBrowseGameGallery(): boolean {
@@ -24,5 +26,5 @@ export async function fetchPublicGames(): Promise<CloudApiGalleryResponse['games
 }
 
 export function buildLocalPlayUrl(publishId: string): string {
-  return `${window.location.origin.replace(/\/$/, '')}/play/${publishId}/`;
+  return buildPublishedGamePlayUrl(publishId);
 }
