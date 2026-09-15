@@ -28,20 +28,17 @@ function createIndexHtml(projectName: string): string {
     <style>
       html, body {
         margin: 0;
+        width: 100%;
         height: 100%;
+        overflow: hidden;
         background: #1a1a2e;
         color: #cccccc;
         font-family: system-ui, sans-serif;
       }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
       #wrap {
         position: relative;
-        width: min(960px, 100vw);
-        height: min(600px, 100vh);
+        width: 100%;
+        height: 100%;
       }
       canvas {
         width: 100%;
