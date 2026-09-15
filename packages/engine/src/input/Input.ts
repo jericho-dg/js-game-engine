@@ -1,9 +1,31 @@
 /** Simple keyboard input state — updated by the editor during play mode. */
 export class Input {
+  /** Virtual key set while the primary pointer button is held (click / tap). */
+  static readonly POINTER = 'Pointer';
+
   private static keys = new Map<string, boolean>();
 
   static getKey(key: string): boolean {
     return Input.keys.get(key) ?? false;
+  }
+
+  /** Wire pointer down/up on an element to {@link Input.POINTER} (for play mode / player). */
+  static wirePointer(target: HTMLElement): () => void {
+    const onDown = () => Input._setKey(Input.POINTER, true);
+    const onUp = () => Input._setKey(Input.POINTER, false);
+
+    target.addEventListener('pointerdown', onDown);
+    target.addEventListener('pointerup', onUp);
+    target.addEventListener('pointerleave', onUp);
+    target.addEventListener('pointercancel', onUp);
+
+    return () => {
+      target.removeEventListener('pointerdown', onDown);
+      target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointerleave', onUp);
+      target.removeEventListener('pointercancel', onUp);
+      Input._setKey(Input.POINTER, false);
+    };
   }
 
   static getAxis(axis: 'Horizontal' | 'Vertical'): number {

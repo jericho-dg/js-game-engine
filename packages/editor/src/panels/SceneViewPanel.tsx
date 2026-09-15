@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
+  Input,
   Runtime,
   TilemapRenderer,
   getSceneCamera,
@@ -91,6 +92,9 @@ export function SceneViewPanel() {
     };
 
     applyViewport();
+
+    const unwirePointer =
+      editorMode === 'play' ? Input.wirePointer(stage) : null;
 
     if (editorMode === 'play') {
       runtime.start();
@@ -215,6 +219,7 @@ export function SceneViewPanel() {
     stage.addEventListener('contextmenu', onContextMenu);
 
     return () => {
+      unwirePointer?.();
       observer.disconnect();
       runtime.stop();
       stage.removeEventListener('pointerdown', onPointerDown);

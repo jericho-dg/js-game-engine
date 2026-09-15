@@ -285,7 +285,7 @@ function addPipeSprite(obj: GameObject, isTop: boolean): void {
 
 const FLAPPY_MENU_SOURCE = `export default class MenuController extends Behaviour {
   onUpdate() {
-    if (Input.getKey(' ') || Input.getKey('Enter')) {
+    if (Input.getKey(' ') || Input.getKey('Enter') || Input.getKey(Input.POINTER)) {
       this.loadScene('Game');
     }
   }
@@ -294,7 +294,7 @@ const FLAPPY_MENU_SOURCE = `export default class MenuController extends Behaviou
 
 const FLAPPY_GAME_OVER_SOURCE = `export default class GameOverController extends Behaviour {
   onUpdate() {
-    if (Input.getKey(' ') || Input.getKey('Enter')) {
+    if (Input.getKey(' ') || Input.getKey('Enter') || Input.getKey(Input.POINTER)) {
       this.loadScene('Game');
     }
     if (Input.getKey('m') || Input.getKey('M')) {
@@ -320,7 +320,7 @@ const FLAPPY_BIRD_SOURCE = `export default class FlappyBird extends Behaviour {
 
     this.body.velocity.x = 0;
 
-    const flap = Input.getKey(' ') || Input.getKey('ArrowUp');
+    const flap = Input.getKey(' ') || Input.getKey('ArrowUp') || Input.getKey(Input.POINTER);
     if (flap && !this.flapPressed) {
       this.body.velocity.y = 380;
       if (this.flapAudio) this.flapAudio.playOneShot();

@@ -188,7 +188,7 @@ function hydrateScene(scene: Scene, assets: LoadedAssets): void {
   }
 }
 
-function wireInput(): () => void {
+function wireInput(pointerTarget: HTMLElement): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     Input._setKey(event.key, true);
   };
@@ -198,10 +198,12 @@ function wireInput(): () => void {
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  const unwirePointer = Input.wirePointer(pointerTarget);
 
   return () => {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
+    unwirePointer();
   };
 }
 
@@ -252,7 +254,7 @@ async function startGame(
   const stage = canvas.parentElement;
   const wrap = stage?.parentElement ?? document.body;
   let runtime = new Runtime({ scene: activeScene, canvas, showGrid: false });
-  const unwireInput = wireInput();
+  const unwireInput = wireInput(wrap);
 
   const applyViewport = () => {
     const { width: windowWidth, height: windowHeight } = wrap.getBoundingClientRect();
