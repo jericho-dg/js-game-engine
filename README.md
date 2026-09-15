@@ -73,7 +73,9 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 - When signed in with the remote cloud API, **Publish** uploads a standalone HTML5 build and returns a shareable play URL
 - Optionally **list in the public game gallery** from the publish dialog
 - Republishing the same project updates the same URL
-- Play URLs are served at `/play/{id}/` (proxied to the cloud API in dev)
+- Play URLs are served by the **cloud API** at `/play/{id}/` (Vite proxies `/play` in local dev)
+- In production (Vercel editor + Railway API), play links use your **Railway host** by default — the editor static app does not serve `/play` itself
+- Optional: use **Vercel** play links by adding a rewrite ` /play/:path*` → `https://<cloud-api>.up.railway.app/play/:path*` and set Railway `PLAY_URL_ORIGIN=https://<your-vercel-app>`
 
 ### Project sharing
 - **Share** on a project card creates a link recipients can use to import a copy
@@ -102,6 +104,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 - In Vercel project settings, turn **off** overrides for Output Directory (or set `dist` only when Root Directory is `packages/editor`) so `vercel.json` is not fighting the dashboard
 - Set **`VITE_CLOUD_API_URL`** to your Railway public URL **including `https://`**, e.g. `https://your-app.up.railway.app` (not a path on the Vercel domain)
 - Redeploy Vercel after changing any `VITE_*` variable
+- **Published games:** open the play URL from the publish dialog (Railway `/play/...` unless you configured the Vercel rewrite above). Old links on the Vercel domain without a rewrite will 404
 
 ## Phase 7 features
 

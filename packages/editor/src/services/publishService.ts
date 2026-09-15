@@ -4,6 +4,7 @@ import { useAccountStore } from '../stores/accountStore';
 import { db } from './db';
 import { isRemoteCloudEnabled } from './cloud/getCloudBackend';
 import { resolveCloudApiBaseUrl } from './cloud/cloudApiUrl';
+import { buildPublishedGamePlayUrl } from './playUrl';
 import { buildStandaloneGameZip } from './standaloneExport';
 
 function getCloudApiBase(): string {
@@ -69,7 +70,7 @@ export async function publishStandaloneGame(
     await db.projects.put({ ...stored, publishId });
   }
 
-  const playUrl = `${window.location.origin.replace(/\/$/, '')}/play/${publishId}/`;
+  const playUrl = buildPublishedGamePlayUrl(publishId);
   return {
     publishId,
     playUrl: result.playUrl || playUrl,
