@@ -162,7 +162,8 @@ export async function readPublishedFile(
 }
 
 export function buildPlayUrl(origin: string, publishId: string): string {
-  return `${origin.replace(/\/$/, '')}/play/${publishId}/`;
+  // No trailing slash: Vercel static rewrites match /play/:id but often 404 on /play/:id/
+  return `${origin.replace(/\/$/, '')}/play/${publishId}`;
 }
 
 export function injectPlayBaseHref(html: string, publishId: string): string {

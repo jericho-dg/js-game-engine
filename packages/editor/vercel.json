@@ -3,14 +3,21 @@
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/play/:publishId/",
+      "destination": "/play/:publishId",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
-      "source": "/cloud-api/:path*",
-      "destination": "https://js-game-enginecloud-api-production.up.railway.app/:path*"
+      "source": "/cloud-api/(.*)",
+      "destination": "https://js-game-enginecloud-api-production.up.railway.app/$1"
     },
     {
-      "source": "/play/:path*",
-      "destination": "https://js-game-enginecloud-api-production.up.railway.app/play/:path*"
+      "source": "/play/(.*)",
+      "destination": "https://js-game-enginecloud-api-production.up.railway.app/play/$1"
     }
   ]
 }

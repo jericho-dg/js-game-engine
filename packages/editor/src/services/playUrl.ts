@@ -10,7 +10,7 @@ export function buildPublishedGamePlayUrl(publishId: string): string {
     throw new Error('Play URL requires the remote cloud API.');
   }
 
-  const path = `/play/${publishId}/`;
+  const path = `/play/${publishId}`;
 
   if (apiBase.startsWith('/')) {
     return `${window.location.origin.replace(/\/$/, '')}${path}`;

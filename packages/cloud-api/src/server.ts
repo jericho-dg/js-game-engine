@@ -115,15 +115,6 @@ async function handlePlayRoutes(
   const publishId = decodeURIComponent(playMatch[1]!);
   const filePath = playMatch[2] ?? '';
 
-  if (filePath === '' && !pathname.endsWith('/')) {
-    res.writeHead(302, {
-      Location: `${pathname}/`,
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.end();
-    return true;
-  }
-
   const file = await getCloudStore().readPublishedFile(publishId, filePath || 'index.html');
   if (!file) {
     sendJson(res, 404, { error: 'Game not found.' });
