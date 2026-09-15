@@ -136,21 +136,21 @@ function buildGameScene(soundIds: FlappySoundAssetIds): Scene {
   birdScript.scriptAssetId = FLAPPY_BIRD_SCRIPT_ID;
 
   const ground = scene.createGameObject('Ground');
-  ground.transform.localPosition.set(0, -260);
+  ground.transform.localPosition.set(0, -280);
   const groundSprite = ground.addComponent(new SpriteRenderer());
   groundSprite.color = Color.fromHex('#ded895');
-  groundSprite.width = 2000;
+  groundSprite.width = 960;
   groundSprite.height = 40;
   groundSprite.sortingOrder = -5;
   const groundTop = scene.createGameObject('GroundStrip', ground);
   groundTop.transform.localPosition.set(0, 20);
   const groundTopSprite = groundTop.addComponent(new SpriteRenderer());
   groundTopSprite.color = Color.fromHex('#73bf2e');
-  groundTopSprite.width = 2000;
+  groundTopSprite.width = 960;
   groundTopSprite.height = 20;
   groundTopSprite.sortingOrder = -4;
   const groundCollider = ground.addComponent(new BoxCollider2D());
-  groundCollider.width = 2000;
+  groundCollider.width = 960;
   groundCollider.height = 40;
 
   const ceiling = scene.createGameObject('Ceiling');
