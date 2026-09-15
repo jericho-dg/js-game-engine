@@ -1,12 +1,13 @@
 import {
-  STANDALONE_DESIGN_VIEWPORT_HEIGHT,
+  DESIGN_VIEWPORT_HEIGHT,
+  DESIGN_VIEWPORT_WIDTH,
+  computeLetterboxDisplaySize,
   type StandaloneGameManifest,
 } from '@js-game-engine/shared';
 import {
   AudioSource,
   Behaviour,
   BoxCollider2D,
-  Camera2D,
   Collision2D,
   Debug,
   Input,
@@ -187,55 +188,6 @@ function hydrateScene(scene: Scene, assets: LoadedAssets): void {
   }
 }
 
-function findGameObjectByName(root: GameObject, name: string): GameObject | null {
-  if (root.name === name) return root;
-  for (const child of root.children) {
-    const found = findGameObjectByName(child, name);
-    if (found) return found;
-  }
-  return null;
-}
-
-function findGameObjectInScene(scene: Scene, name: string): GameObject | null {
-  for (const root of scene.rootObjects) {
-    const found = findGameObjectByName(root, name);
-    if (found) return found;
-  }
-  return null;
-}
-
-function findCamera2D(scene: Scene): Camera2D | null {
-  const search = (obj: GameObject): Camera2D | null => {
-    const camera = obj.getComponent(Camera2D);
-    if (camera?.enabled) return camera;
-    for (const child of obj.children) {
-      const found = search(child);
-      if (found) return found;
-    }
-    return null;
-  };
-
-  for (const root of scene.rootObjects) {
-    const camera = search(root);
-    if (camera) return camera;
-  }
-  return null;
-}
-
-/** Pin the bottom of the Ground object to the bottom of the visible viewport. */
-function anchorCameraGroundToViewportBottom(scene: Scene, viewportHeight: number): void {
-  const camera = findCamera2D(scene);
-  const ground = findGameObjectInScene(scene, 'Ground');
-  if (!camera || !ground) return;
-
-  const collider = ground.getComponent(BoxCollider2D);
-  const sprite = ground.getComponent(SpriteRenderer);
-  const groundHeight = collider?.height ?? sprite?.height ?? 40;
-  const groundBottom = ground.transform.worldPosition.y - groundHeight / 2;
-
-  camera.position.y = groundBottom + viewportHeight / 2;
-}
-
 function wireInput(): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     Input._setKey(event.key, true);
@@ -297,24 +249,26 @@ async function startGame(
   await AudioSystem.ensureContext();
   overlay?.classList.add('hidden');
 
-  const container = canvas.parentElement ?? document.body;
+  const stage = canvas.parentElement;
+  const wrap = stage?.parentElement ?? document.body;
   let runtime = new Runtime({ scene: activeScene, canvas, showGrid: false });
   const unwireInput = wireInput();
 
-  const designHeight =
-    manifest.designViewportHeight ?? STANDALONE_DESIGN_VIEWPORT_HEIGHT;
-
   const applyViewport = () => {
-    const { width: windowWidth, height: windowHeight } = container.getBoundingClientRect();
-    if (windowHeight <= 0) return;
+    const { width: windowWidth, height: windowHeight } = wrap.getBoundingClientRect();
+    const { displayWidth, displayHeight } = computeLetterboxDisplaySize(
+      windowWidth,
+      windowHeight,
+    );
+    if (displayWidth <= 0 || displayHeight <= 0) return;
 
-    const scale = windowHeight / designHeight;
-    const logicalWidth = windowWidth / scale;
-
-    runtime.resize(logicalWidth, designHeight);
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    anchorCameraGroundToViewportBottom(runtime.scene, designHeight);
+    runtime.resize(DESIGN_VIEWPORT_WIDTH, DESIGN_VIEWPORT_HEIGHT);
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    if (stage instanceof HTMLElement) {
+      stage.style.width = `${displayWidth}px`;
+      stage.style.height = `${displayHeight}px`;
+    }
   };
 
   const loadSceneData = (data: import('@js-game-engine/shared').SerializedScene) => {

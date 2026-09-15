@@ -1,8 +1,4 @@
-import {
-  STANDALONE_DESIGN_VIEWPORT_HEIGHT,
-  STANDALONE_EXPORT_VERSION,
-  type StandaloneGameManifest,
-} from '@js-game-engine/shared';
+import { STANDALONE_EXPORT_VERSION, type StandaloneGameManifest } from '@js-game-engine/shared';
 import type { Scene } from '@js-game-engine/engine';
 import { serializeScene } from '@js-game-engine/engine';
 import JSZip from 'jszip';
@@ -37,13 +33,17 @@ function createIndexHtml(projectName: string): string {
         font-family: system-ui, sans-serif;
       }
       #wrap {
-        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         width: 100%;
         height: 100%;
       }
+      #stage {
+        position: relative;
+        line-height: 0;
+      }
       canvas {
-        width: 100%;
-        height: 100%;
         display: block;
         background: #1a1a2e;
       }
@@ -66,8 +66,10 @@ function createIndexHtml(projectName: string): string {
   </head>
   <body>
     <div id="wrap">
-      <canvas id="game"></canvas>
-      <div id="overlay">Click to Play</div>
+      <div id="stage">
+        <canvas id="game"></canvas>
+        <div id="overlay">Click to Play</div>
+      </div>
     </div>
     <script src="jge-player.js"></script>
     <script>
@@ -161,7 +163,6 @@ export async function buildStandaloneGameZip(
     scenes,
     scripts: compiledScripts,
     assets,
-    designViewportHeight: STANDALONE_DESIGN_VIEWPORT_HEIGHT,
   };
 
   const playerBundle = await loadPlayerBundle();

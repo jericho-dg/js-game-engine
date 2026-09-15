@@ -5,7 +5,13 @@ import {
   getSceneCamera,
   screenToWorld,
 } from '@js-game-engine/engine';
-import { Vector2 } from '@js-game-engine/shared';
+import {
+  DESIGN_VIEWPORT_HEIGHT,
+  DESIGN_VIEWPORT_WIDTH,
+  Vector2,
+  computeLetterboxDisplaySize,
+  pointerToDesignViewport,
+} from '@js-game-engine/shared';
 import { Panel } from '../components/Panel';
 import { drawSelectionGizmo, drawColliderGizmos } from '../gizmos/gizmoRenderer';
 import { hitTestScene } from '../gizmos/hitTest';
@@ -14,6 +20,7 @@ import { getSelectedObject, findObjectById, useSceneStore } from '../stores/scen
 export function SceneViewPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const getActiveScene = useSceneStore((s) => s.getActiveScene);
   const sceneRevision = useSceneStore((s) => s.sceneRevision);
   const editorMode = useSceneStore((s) => s.editorMode);
@@ -26,8 +33,9 @@ export function SceneViewPanel() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
+    const stage = stageRef.current;
     const scene = getActiveScene();
-    if (!canvas || !container || !scene) return;
+    if (!canvas || !container || !stage || !scene) return;
 
     const runtime = new Runtime({ scene, canvas, showGrid: editorMode === 'edit' });
     const dragState = {
@@ -41,9 +49,16 @@ export function SceneViewPanel() {
       erase: false,
     };
 
-    const resize = () => {
+    const applyViewport = () => {
       const { width, height } = container.getBoundingClientRect();
-      runtime.resize(width, height);
+      const { displayWidth, displayHeight } = computeLetterboxDisplaySize(width, height);
+      if (displayWidth <= 0 || displayHeight <= 0) return;
+
+      runtime.resize(DESIGN_VIEWPORT_WIDTH, DESIGN_VIEWPORT_HEIGHT);
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
+      stage.style.width = `${displayWidth}px`;
+      stage.style.height = `${displayHeight}px`;
     };
 
     const renderEditFrame = () => {
@@ -52,32 +67,30 @@ export function SceneViewPanel() {
       if (!activeScene) return;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        const { width, height } = container.getBoundingClientRect();
         drawColliderGizmos(
           ctx,
           activeScene,
           getSceneCamera(activeScene),
-          width,
-          height,
+          DESIGN_VIEWPORT_WIDTH,
+          DESIGN_VIEWPORT_HEIGHT,
         );
       }
       const selected = getSelectedObject();
       if (selected && editorMode === 'edit') {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          const { width, height } = container.getBoundingClientRect();
           drawSelectionGizmo(
             ctx,
             selected,
             getSceneCamera(activeScene),
-            width,
-            height,
+            DESIGN_VIEWPORT_WIDTH,
+            DESIGN_VIEWPORT_HEIGHT,
           );
         }
       }
     };
 
-    resize();
+    applyViewport();
 
     if (editorMode === 'play') {
       runtime.start();
@@ -86,22 +99,21 @@ export function SceneViewPanel() {
     }
 
     const observer = new ResizeObserver(() => {
-      resize();
+      applyViewport();
       if (editorMode === 'edit') renderEditFrame();
     });
     observer.observe(container);
 
     const getWorldPoint = (clientX: number, clientY: number) => {
       const activeScene = getActiveScene();
-      const rect = container.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
       if (!activeScene) return Vector2.zero();
+      const rect = canvas.getBoundingClientRect();
+      const { x, y } = pointerToDesignViewport(clientX, clientY, rect);
       return screenToWorld(
         x,
         y,
-        rect.width,
-        rect.height,
+        DESIGN_VIEWPORT_WIDTH,
+        DESIGN_VIEWPORT_HEIGHT,
         getSceneCamera(activeScene),
       );
     };
@@ -130,7 +142,7 @@ export function SceneViewPanel() {
           paintState.active = true;
           paintState.objectId = selected.id;
           paintState.erase = erase;
-          container.setPointerCapture(event.pointerId);
+          stage.setPointerCapture(event.pointerId);
           return;
         }
       }
@@ -143,7 +155,7 @@ export function SceneViewPanel() {
         dragState.objectId = hit.id;
         const pos = hit.transform.worldPosition;
         dragState.offset = new Vector2(world.x - pos.x, world.y - pos.y);
-        container.setPointerCapture(event.pointerId);
+        stage.setPointerCapture(event.pointerId);
       } else {
         selectObject(null);
         renderEditFrame();
@@ -178,7 +190,7 @@ export function SceneViewPanel() {
         paintState.active = false;
         paintState.objectId = null;
         markSceneChanged();
-        container.releasePointerCapture(event.pointerId);
+        stage.releasePointerCapture(event.pointerId);
         return;
       }
 
@@ -186,7 +198,7 @@ export function SceneViewPanel() {
         dragState.active = false;
         dragState.objectId = null;
         markSceneChanged();
-        container.releasePointerCapture(event.pointerId);
+        stage.releasePointerCapture(event.pointerId);
       }
     };
 
@@ -196,20 +208,20 @@ export function SceneViewPanel() {
       }
     };
 
-    container.addEventListener('pointerdown', onPointerDown);
-    container.addEventListener('pointermove', onPointerMove);
-    container.addEventListener('pointerup', onPointerUp);
-    container.addEventListener('pointerleave', onPointerUp);
-    container.addEventListener('contextmenu', onContextMenu);
+    stage.addEventListener('pointerdown', onPointerDown);
+    stage.addEventListener('pointermove', onPointerMove);
+    stage.addEventListener('pointerup', onPointerUp);
+    stage.addEventListener('pointerleave', onPointerUp);
+    stage.addEventListener('contextmenu', onContextMenu);
 
     return () => {
       observer.disconnect();
       runtime.stop();
-      container.removeEventListener('pointerdown', onPointerDown);
-      container.removeEventListener('pointermove', onPointerMove);
-      container.removeEventListener('pointerup', onPointerUp);
-      container.removeEventListener('pointerleave', onPointerUp);
-      container.removeEventListener('contextmenu', onContextMenu);
+      stage.removeEventListener('pointerdown', onPointerDown);
+      stage.removeEventListener('pointermove', onPointerMove);
+      stage.removeEventListener('pointerup', onPointerUp);
+      stage.removeEventListener('pointerleave', onPointerUp);
+      stage.removeEventListener('contextmenu', onContextMenu);
     };
   }, [
     getActiveScene,
@@ -226,9 +238,11 @@ export function SceneViewPanel() {
     <Panel title="Scene">
       <div
         ref={containerRef}
-        className="relative h-full w-full cursor-crosshair bg-[#1a1a2e]"
+        className="flex h-full w-full items-center justify-center bg-[#1a1a2e]"
       >
-        <canvas ref={canvasRef} className="absolute inset-0 block" />
+        <div ref={stageRef} className="relative shrink-0">
+          <canvas ref={canvasRef} className="block" />
+        </div>
       </div>
     </Panel>
   );
