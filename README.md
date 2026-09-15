@@ -98,7 +98,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 
 ### Deploying (Vercel + Railway)
 - **Railway:** run `npm run start -w @js-game-engine/cloud-api` with `CLOUD_STORE=supabase` and Supabase server env vars
-- **Vercel:** deploy from repo root (uses root `vercel.json`) **or** set **Root Directory** to `packages/editor` (uses `packages/editor/vercel.json`); output is always `packages/editor/dist`
+- **Vercel:** deploy from repo root (uses root `vercel.json`) **or** set **Root Directory** to `packages/editor` (uses `packages/editor/vercel.json`); build runs `npm run build` (player bundle + editor) so publish can load `jge-player.js`; output is always `packages/editor/dist`
 - In Vercel project settings, turn **off** overrides for Output Directory (or set `dist` only when Root Directory is `packages/editor`) so `vercel.json` is not fighting the dashboard
 - Set **`VITE_CLOUD_API_URL`** to your Railway public URL **including `https://`**, e.g. `https://your-app.up.railway.app` (not a path on the Vercel domain)
 - Redeploy Vercel after changing any `VITE_*` variable

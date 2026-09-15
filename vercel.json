@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "npm install",
-  "buildCommand": "npm run build -w @js-game-engine/editor",
+  "buildCommand": "npm run build",
   "outputDirectory": "packages/editor/dist"
 }
