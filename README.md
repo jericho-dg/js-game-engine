@@ -96,6 +96,12 @@ Open the URL printed by Vite (typically `http://localhost:5173`). The **Project 
 
   For hosted Supabase storage, configure `packages/cloud-api/.env` (see Phase 9 above) before starting the API.
 
+### Deploying (Vercel + Railway)
+- **Railway:** run `npm run start -w @js-game-engine/cloud-api` with `CLOUD_STORE=supabase` and Supabase server env vars
+- **Vercel:** build output is `packages/editor/dist` (see root `vercel.json`)
+- Set **`VITE_CLOUD_API_URL`** to your Railway public URL **including `https://`**, e.g. `https://your-app.up.railway.app` (not a path on the Vercel domain)
+- Redeploy Vercel after changing any `VITE_*` variable
+
 ## Phase 7 features
 
 ### Project Manager

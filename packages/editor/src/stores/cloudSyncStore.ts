@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SyncConflict } from '@js-game-engine/shared';
+import { isRemoteCloudApiConfigured } from '../services/cloud/cloudApiUrl';
 
 export type CloudSyncMode = 'simulated' | 'remote';
 
@@ -29,7 +30,7 @@ interface CloudSyncState {
 }
 
 function detectMode(): CloudSyncMode {
-  return import.meta.env.VITE_CLOUD_API_URL ? 'remote' : 'simulated';
+  return isRemoteCloudApiConfigured() ? 'remote' : 'simulated';
 }
 
 export const useCloudSyncStore = create<CloudSyncState>((set, get) => ({

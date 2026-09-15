@@ -3,14 +3,15 @@ import type { Scene } from '@js-game-engine/engine';
 import { useAccountStore } from '../stores/accountStore';
 import { db } from './db';
 import { isRemoteCloudEnabled } from './cloud/getCloudBackend';
+import { resolveCloudApiBaseUrl } from './cloud/cloudApiUrl';
 import { buildStandaloneGameZip } from './standaloneExport';
 
 function getCloudApiBase(): string {
-  const apiUrl = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+  const apiUrl = resolveCloudApiBaseUrl();
   if (!apiUrl) {
     throw new Error('Publishing requires the remote cloud API.');
   }
-  return apiUrl.replace(/\/$/, '');
+  return apiUrl;
 }
 
 export function canPublishToCloud(): boolean {

@@ -1,12 +1,13 @@
 import type { CloudApiGalleryResponse } from '@js-game-engine/shared';
 import { isRemoteCloudEnabled } from './cloud/getCloudBackend';
+import { resolveCloudApiBaseUrl } from './cloud/cloudApiUrl';
 
 function getCloudApiBase(): string {
-  const apiUrl = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+  const apiUrl = resolveCloudApiBaseUrl();
   if (!apiUrl) {
     throw new Error('The game gallery requires the remote cloud API.');
   }
-  return apiUrl.replace(/\/$/, '');
+  return apiUrl;
 }
 
 export function canBrowseGameGallery(): boolean {
