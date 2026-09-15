@@ -6,6 +6,7 @@ import {
   AudioSource,
   Behaviour,
   BoxCollider2D,
+  Camera2D,
   Collision2D,
   Debug,
   Input,
@@ -186,6 +187,55 @@ function hydrateScene(scene: Scene, assets: LoadedAssets): void {
   }
 }
 
+function findGameObjectByName(root: GameObject, name: string): GameObject | null {
+  if (root.name === name) return root;
+  for (const child of root.children) {
+    const found = findGameObjectByName(child, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findGameObjectInScene(scene: Scene, name: string): GameObject | null {
+  for (const root of scene.rootObjects) {
+    const found = findGameObjectByName(root, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findCamera2D(scene: Scene): Camera2D | null {
+  const search = (obj: GameObject): Camera2D | null => {
+    const camera = obj.getComponent(Camera2D);
+    if (camera?.enabled) return camera;
+    for (const child of obj.children) {
+      const found = search(child);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  for (const root of scene.rootObjects) {
+    const camera = search(root);
+    if (camera) return camera;
+  }
+  return null;
+}
+
+/** Pin the bottom of the Ground object to the bottom of the visible viewport. */
+function anchorCameraGroundToViewportBottom(scene: Scene, viewportHeight: number): void {
+  const camera = findCamera2D(scene);
+  const ground = findGameObjectInScene(scene, 'Ground');
+  if (!camera || !ground) return;
+
+  const collider = ground.getComponent(BoxCollider2D);
+  const sprite = ground.getComponent(SpriteRenderer);
+  const groundHeight = collider?.height ?? sprite?.height ?? 40;
+  const groundBottom = ground.transform.worldPosition.y - groundHeight / 2;
+
+  camera.position.y = groundBottom + viewportHeight / 2;
+}
+
 function wireInput(): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     Input._setKey(event.key, true);
@@ -251,6 +301,22 @@ async function startGame(
   let runtime = new Runtime({ scene: activeScene, canvas, showGrid: false });
   const unwireInput = wireInput();
 
+  const designHeight =
+    manifest.designViewportHeight ?? STANDALONE_DESIGN_VIEWPORT_HEIGHT;
+
+  const applyViewport = () => {
+    const { width: windowWidth, height: windowHeight } = container.getBoundingClientRect();
+    if (windowHeight <= 0) return;
+
+    const scale = windowHeight / designHeight;
+    const logicalWidth = windowWidth / scale;
+
+    runtime.resize(logicalWidth, designHeight);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    anchorCameraGroundToViewportBottom(runtime.scene, designHeight);
+  };
+
   const loadSceneData = (data: import('@js-game-engine/shared').SerializedScene) => {
     detachCompiledScripts(activeScene);
     activeScene.stop();
@@ -266,32 +332,20 @@ async function startGame(
     Input._clear();
     activeScene = nextScene;
     runtime.setScene(nextScene);
+    applyViewport();
   };
 
   SceneManager.configure(sceneCatalog, loadSceneData);
 
-  const resize = () => {
-    const { width: windowWidth, height: windowHeight } = container.getBoundingClientRect();
-    if (windowHeight <= 0) return;
-
-    const designHeight = STANDALONE_DESIGN_VIEWPORT_HEIGHT;
-    const scale = windowHeight / designHeight;
-    const logicalWidth = windowWidth / scale;
-
-    runtime.resize(logicalWidth, designHeight);
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-  };
-
-  resize();
-  window.addEventListener('resize', resize);
+  applyViewport();
+  window.addEventListener('resize', applyViewport);
   runtime.start();
 
   window.addEventListener('beforeunload', () => {
     runtime.stop();
     SceneManager.reset();
     unwireInput();
-    window.removeEventListener('resize', resize);
+    window.removeEventListener('resize', applyViewport);
   });
 }
 

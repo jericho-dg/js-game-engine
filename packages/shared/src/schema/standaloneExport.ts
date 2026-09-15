@@ -17,4 +17,6 @@ export interface StandaloneGameManifest {
   scenes?: import('./project').SceneRecord[];
   scripts: StandaloneCompiledScript[];
   assets: import('./project').ProjectExportAsset[];
+  /** Logical viewport height used for published scale-to-fit (default 960). */
+  designViewportHeight?: number;
 }

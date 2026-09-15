@@ -1,4 +1,5 @@
 import {
+  STANDALONE_DESIGN_VIEWPORT_HEIGHT,
   STANDALONE_EXPORT_VERSION,
   type StandaloneGameManifest,
 } from '@js-game-engine/shared';
@@ -160,6 +161,7 @@ export async function buildStandaloneGameZip(
     scenes,
     scripts: compiledScripts,
     assets,
+    designViewportHeight: STANDALONE_DESIGN_VIEWPORT_HEIGHT,
   };
 
   const playerBundle = await loadPlayerBundle();
